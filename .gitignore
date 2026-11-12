@@ -218,3 +218,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Tamriel Intelligence System data
+data/database/*.db
+data/database/*.db-journal
+data/processed/
+
+# Original UESP XML dumps
+*.xml
+*.xml.bz2
