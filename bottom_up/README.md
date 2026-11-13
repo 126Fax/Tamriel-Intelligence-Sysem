@@ -31,7 +31,37 @@ The runner is deliberately separate from `bottom_up_ai.py`. It does not run when
 
 The sample database is local generated data and is ignored by Git. Re-running the importer is safe: existing sample pages are not duplicated.
 
-## 4. Planned development
+
+## 4. Sample analysis runner
+
+After importing the sample database, run:
+
+```bash
+python -m bottom_up.run_sample_analysis
+```
+
+This separate runner reads the five stored pages, analyses their wiki markup, and reports page structure and individual outgoing links. Each link is represented with its source page, destination, destination prefix (when present), and display text.
+
+These are **wiki link references**, not verified semantic relationships. A link from one page to another does not by itself prove that the source page belongs to, describes, or has any other particular relationship with the destination.
+
+The runner does not change the main database, the existing hardcoded demonstration, or `knowledge_base.json`.
+
+## 5. Planned development
+
+The next stages are to test link extraction against a more representative sample of ordinary lore pages, discover recurring patterns across pages, and validate any proposed relationships against source text. Once this works, the same database interface can be used with the full UESP dump.
+
+Potential techniques include:
+
+- Statistical pattern discovery.
+- Text similarity and clustering.
+- Natural language processing.
+- Classification, where useful and testable.
+
+These are planned techniques, not capabilities that the current prototype already provides.
+
+## 6. Testing
+
+The existing pipeline tests use a synthetic XML fixture and a temporary SQLite database. The committed UESP sample runners provide additional manual integration checks against real UESP pages.
 
 The next stages are to connect the bottom-up analysis functions to pages retrieved from the sample database, improve pattern discovery, and test the findings against known examples. Once this works, the same database interface can be used with the full UESP dump.
 
