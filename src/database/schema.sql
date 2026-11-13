@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS pages (
     namespace_name TEXT NOT NULL,
     revision_id INTEGER,
     text_length INTEGER NOT NULL,
+    page_text TEXT NOT NULL DEFAULT '',
 
     PRIMARY KEY (dump_id, page_id),
 
