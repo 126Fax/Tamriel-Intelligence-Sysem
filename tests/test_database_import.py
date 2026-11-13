@@ -1,7 +1,6 @@
 from time import perf_counter
 
-from config.paths import XML_DUMP_PATH
-
+from config.paths import get_xml_dump_path
 from src.database.database import (
     get_connection,
     insert_pages_batch,
@@ -12,7 +11,6 @@ from src.ingestion.namespaces import read_namespaces
 from src.ingestion.xml_reader import inter_page_data
 
 
-DUMP_NAME = XML_DUMP_PATH.name if XML_DUMP_PATH is not None else None
 DUMP_DATE = "2026-11-01"
 BATCH_SIZE = 1000
 
@@ -29,7 +27,7 @@ def report_progress(processed_count, inserted_count, start_time):
     print(f"Processing rate: {processing_rate:,.0f} pages/second")
 
 
-def get_or_register_dump():
+def get_or_register_dump(dump_name):
     connection = get_connection()
 
     try:
@@ -39,7 +37,7 @@ def get_or_register_dump():
             FROM source_dumps
             WHERE source_name = ?
             """,
-            (DUMP_NAME,),
+            (dump_name,),
         ).fetchone()
 
         if result is not None:
@@ -48,28 +46,18 @@ def get_or_register_dump():
     finally:
         connection.close()
 
-    return register_source_dump(DUMP_NAME, DUMP_DATE)
-
-
+    return register_source_dump(dump_name, DUMP_DATE)
 
 
 def main():
-
-    if XML_DUMP_PATH is None:
-        raise RuntimeError(
-            "XML dump path is not configured. "
-            "Set XML_DUMP_PATH in config/local.py."
-        )
-
-    if not XML_DUMP_PATH.exists():
-        raise FileNotFoundError(f"Dump not found: {XML_DUMP_PATH}")
-
-    dump_id = get_or_register_dump()
+    dump_path = get_xml_dump_path()
+    dump_name = dump_path.name
+    dump_id = get_or_register_dump(dump_name)
 
     print(f"Source dump ID: {dump_id}")
     print("Reading namespace information...")
 
-    namespace_map = read_namespaces(XML_DUMP_PATH)
+    namespace_map = read_namespaces(dump_path)
 
     try:
         update_import_status(dump_id, "importing")
@@ -80,7 +68,7 @@ def main():
 
         inserted_count = insert_pages_batch(
             dump_id,
-            inter_page_data(XML_DUMP_PATH),
+            inter_page_data(dump_path),
             namespace_map,
             batch_size=BATCH_SIZE,
             progress_callback=lambda processed, inserted: report_progress(
