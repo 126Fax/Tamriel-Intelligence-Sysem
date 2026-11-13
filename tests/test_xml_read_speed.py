@@ -1,12 +1,12 @@
+from config.paths import get_xml_dump_path
 from src.ingestion.xml_reader import inter_page_data
-
-DUMP_PATH = "/home/fax/Downloads/uespwiki-2026-11-01-current.xml.bz2"
 
 
 def main():
+    xml_dump_path = get_xml_dump_path()
     total_pages = 0
 
-    for page in inter_page_data(DUMP_PATH):
+    for page in inter_page_data(xml_dump_path):
         total_pages += 1
 
     print("\nXML reading benchmark complete")
