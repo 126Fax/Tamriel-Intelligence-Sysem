@@ -9,7 +9,7 @@ from tools.split_mediawiki_dump import split_mediawiki_dump
 
 
 MEDIAWIKI_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
-<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.10/" version="0.10">
+<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.10/" version="0.10" xml:lang="en">
   <siteinfo>
     <sitename>Example Wiki</sitename>
     <namespaces><namespace key="0" /></namespaces>
@@ -54,6 +54,10 @@ class TestMediaWikiDumpSplitter(unittest.TestCase):
 
                 namespace = {"mw": "http://www.mediawiki.org/xml/export-0.10/"}
                 self.assertIsNotNone(tree.find(".//mw:siteinfo", namespace))
+                self.assertEqual(
+                    tree.getroot().get("{http://www.w3.org/XML/1998/namespace}lang"),
+                    "en",
+                )
 
                 for page in tree.findall(".//mw:page", namespace):
                     recovered_titles.append(page.findtext("mw:title", namespaces=namespace))
