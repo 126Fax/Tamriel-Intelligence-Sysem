@@ -62,7 +62,7 @@ class PartWriter:
         self.root_context = self.xml_file.element(
             root.tag,
             attrib=dict(root.attrib),
-            nsmap=root.nsmap,
+            nsmap={**root.nsmap, "xml": "http://www.w3.org/XML/1998/namespace"},
         )
         self.root_context.__enter__()
         self.xml_file.write(siteinfo)
