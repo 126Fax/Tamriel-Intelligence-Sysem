@@ -115,13 +115,13 @@ class SyntheticDumpPipelineTests(unittest.TestCase):
                 dump_id,
                 inter_page_data(self.dump_path),
                 namespace_map,
-                batch_size=3,
+                batch_size=5,
             )
             second_insert_count = database.insert_pages_batch(
                 dump_id,
                 inter_page_data(self.dump_path),
                 namespace_map,
-                batch_size=3,
+                batch_size=5,
             )
 
             self.assertEqual(first_insert_count, 12)
