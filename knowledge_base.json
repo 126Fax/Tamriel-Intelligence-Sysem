@@ -1,0 +1,32 @@
+[
+    {
+        "subject": "Skyrim",
+        "relationship": "province",
+        "object": "Empire"
+    },
+    {
+        "subject": "Morrowind",
+        "relationship": "province",
+        "object": "Empire"
+    },
+    {
+        "subject": "Cyrodiil",
+        "relationship": "province",
+        "object": "Empire"
+    },
+    {
+        "subject": "Hammerfell",
+        "relationship": "province",
+        "object": "Empire"
+    },
+    {
+        "subject": "High Rock",
+        "relationship": "province",
+        "object": "Empire"
+    },
+    {
+        "subject": "Dragons",
+        "relationship": "lives in",
+        "object": "Skyrim"
+    }
+]
