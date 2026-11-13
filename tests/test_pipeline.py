@@ -135,6 +135,16 @@ class SyntheticDumpPipelineTests(unittest.TestCase):
                 ).fetchone()[0]
                 self.assertEqual(page_count, 12)
 
+                stored_page = database.get_page_by_title("Skyrim")
+                self.assertIsNotNone(stored_page)
+                self.assertIn("Skyrim", stored_page["page_text"])
+
+                search_results = database.search_pages("dragon")
+                self.assertTrue(search_results)
+                self.assertTrue(
+                    any("dragon" in row["page_text"].lower() for row in search_results)
+                )
+
                 database.update_import_status(dump_id, "completed")
                 status = connection.execute(
                     "SELECT import_status FROM source_dumps WHERE dump_id = ?",
