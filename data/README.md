@@ -1,43 +1,68 @@
 # Data Sources and Preparation
 
-## Overview
+## Source data
 
-The Tamriel Intelligence System uses XML exports from the Unofficial Elder Scrolls Pages (UESP) wiki as its main data source.
+The main source is an XML export of the Unofficial Elder Scrolls Pages (UESP) wiki.
 
-The full XML dump is large and is not stored in Git. Each developer keeps their own local copy and configures its path in the ignored `config/local.py` file.
+Keep the original dump on your computer. Do not commit the full dump, split parts, or generated SQLite databases to Git. Configure the original dump path in the ignored `config/local.py` file:
+
+```python
+from pathlib import Path
+
+XML_DUMP_PATH = Path("/path/to/uespwiki-current.xml.bz2")
+```
 
 ## Small committed sample
 
-A miniature sample from the 1 November 2026 UESP dump is committed at:
+`data/samples/uesp_sample_5_pages.xml.bz2.base64` contains five real main-namespace pages from the 1 November 2026 dump: Morrowind, Arena, Bloodmoon, Oblivion and Daggerfall.
 
-`data/samples/uesp_sample_5_pages.xml.bz2.base64`
-
-It contains five real main-namespace pages: Morrowind, Arena, Bloodmoon, Oblivion and Daggerfall. The compressed XML is Base64-encoded so it can be stored as a small text fixture in Git.
-
-To import it, run the dedicated sample runner from the repository root:
+Import it into its isolated sample database:
 
 ```bash
 python -m bottom_up.run_sample_import
+python -m bottom_up.run_sample_analysis
 ```
 
-The runner temporarily decodes the fixture and passes it through the existing XML reader, namespace reader and database batch-import functions. It writes to `data/database/tamriel_sample.db`, not the main database. Re-running it does not duplicate pages.
+The sample database is written to `data/database/tamriel_sample.db`; it does not replace the main database.
 
-The sample runner is opt-in: importing other project modules does not execute it. The sample database is generated locally and is ignored by Git.
+## Full-dump workflow
 
-## Full data preparation
+### 1. Split the original dump
 
-The full-dump workflow will:
+Large XML exports can be split into standalone MediaWiki XML files at complete page boundaries:
 
-1. Read the XML dump and extract individual wiki pages.
-2. Select relevant content and namespaces.
-3. Preserve the latest revision text for each page.
-4. Store page metadata and text in SQLite.
-5. Make the stored pages available to the bottom-up and top-down systems.
+```bash
+python -m tools.split_mediawiki_dump --input /path/to/uesp_dump.xml.bz2
+```
 
-The existing XML reader and database modules provide the foundations for this process. The complete full-dump import workflow is still under development.
+By default, the tool writes compressed parts and a `manifest.json` under `data/processed/<dump-name>/`. The approximate part-size limit is 90 MB of uncompressed page XML. A single page is never cut in half.
 
-## Data considerations
+### 2. Import the parts
 
-The XML dump may contain duplicate content, redirects, templates, markup, missing information and pages that are not relevant to the project. These need to be considered during analysis.
+Import all parts as one source dump:
 
-The original source and relevant licensing or attribution requirements should be acknowledged when the data is used or redistributed.
+```bash
+python -m bottom_up.run_split_dump_import --manifest data/processed/<dump-name>/manifest.json
+```
+
+The importer uses the existing namespace and page readers and stores the latest revision of each page in SQLite. It can be rerun after an interruption because duplicate page IDs within the same source dump are ignored.
+
+### 3. Prepare AI-readable records
+
+After a successful import:
+
+```bash
+python -m bottom_up.run_data_preparation
+```
+
+This reads the original records and writes a separate `ai_pages` representation. It extracts readable text, headings, templates and parameters, wiki links, categories and external links, while retaining source identifiers and a hash of the original page text.
+
+The preparation step does not infer semantic relationships or train a model. Those are later Bottom-Up AI responsibilities.
+
+## Data handling principles
+
+- Preserve original source text; store transformed representations separately.
+- Keep provenance so prepared information can be traced to its source page and revision.
+- Treat links as references, not proof of a relationship.
+- Keep generated data and local databases out of Git.
+- Acknowledge UESP attribution and applicable licensing requirements when using or redistributing source material.

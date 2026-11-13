@@ -1,48 +1,57 @@
 # Tamriel Intelligence System
 
-## Project overview
+A Python project exploring two cooperating AI approaches to Elder Scrolls lore using the UESP Wiki as its source of information.
 
-The Tamriel Intelligence System is a Python AI project that explores two approaches to working with Elder Scrolls lore from the UESP Wiki:
+## Architecture
 
-- **Bottom-up AI:** examines wiki content, identifies recurring features and patterns, and uses those patterns to organise or classify information.
-- **Top-down AI:** takes a user's question, interprets what information is needed, retrieves relevant lore, and produces an answer using the stored knowledge.
+- **Bottom-Up AI:** examines source material, discovers recurring patterns and proposes structured knowledge for human review.
+- **Top-Down AI:** interprets questions and uses the organised knowledge to retrieve evidence and produce answers.
 
-The aim is to build small, understandable working examples of both approaches and evaluate how they differ. The project is not intended to recreate the entire UESP website or build a production-scale search engine.
-
-## Development approach
-
-The project is being developed in three broad stages:
-
-1. **Shared foundations:** reliable XML reading, a small test dataset, storage of page content, and reusable retrieval functions.
-2. **AI prototypes:** a simple bottom-up pattern-discovery prototype and a simple top-down question-and-retrieval prototype.
-3. **Evaluation:** test both approaches against a consistent set of lore questions or analysis tasks, record their limitations, and compare their results.
-
-Data preparation is deliberately kept proportionate to the AI objectives. The synthetic MediaWiki fixture allows development and testing without repeatedly processing the full UESP dump.
+The two systems share the same source data, but have different responsibilities. A wiki link is recorded as a reference; it is not automatically treated as proof of a semantic relationship.
 
 ## Current foundations
 
-- Reads compressed MediaWiki XML exports.
-- Reads namespace information from the export.
-- Extracts the latest revision of each page.
-- Analyses basic dataset and page-length statistics.
-- Imports page metadata and full page text into SQLite in batches.
-- Provides basic keyword retrieval from stored page titles and text.
-- Includes a synthetic XML fixture and integration tests.
+- Read compressed MediaWiki XML exports.
+- Extract the latest revision of each page.
+- Read MediaWiki namespace definitions.
+- Store page metadata and original page text in SQLite.
+- Retrieve pages using basic title and text keyword search.
+- Split large XML exports at complete page boundaries.
+- Prepare a separate AI-readable representation containing readable text, headings, templates, links, categories and external links.
+- Keep a small synthetic XML fixture and a five-page UESP sample for repeatable testing.
 
-## Technologies
+The original imported page text remains separate from the AI-readable representation. The preparation step does not overwrite the source page.
 
-- Python
-- SQLite
-- XML processing with lxml
-- Wiki markup parsing with mwparserfromhell
-- Git and GitHub
+## Project layout
 
-## Data setup
+- `src/ingestion/`: XML and namespace readers.
+- `src/database/`: SQLite connection, schema and database operations.
+- `src/analysis/`: early page and content analysis utilities.
+- `src/processing/`: AI-readable data preparation.
+- `bottom_up/`: Bottom-Up AI prototype and workflow runners.
+- `top_down/`: Top-Down AI prototype.
+- `tools/`: reusable command-line tools, including the XML splitter.
+- `tests/`: automated tests and test fixtures.
+- `data/`: sample data and local generated data.
 
-The full UESP XML dump is not stored in Git. Configure its location locally in config/local.py using XML_DUMP_PATH. The example configuration should contain a path on the machine running the project.
+See [the data guide](data/README.md) and [the AI development plan](docs/AI_DEVELOPMENT_PLAN.md) for more detail.
 
-The committed synthetic fixture is used by automated tests and does not require the full dump.
+## Setup
 
-## Project status
+Use Python 3.10 or newer and install the project dependencies:
 
-The shared foundations are being completed before the two AI prototypes are developed. The next major milestone is to build and evaluate the first simple AI behaviour, rather than expanding the data pipeline indefinitely.
+```bash
+python -m pip install -r requirements.txt
+```
+
+The full UESP dump and generated databases are local data and must not be committed to Git. Set `XML_DUMP_PATH` in the ignored `config/local.py` file to point to the original dump on your computer.
+
+## Important data behaviour
+
+The current XML ingestion reader stores the **latest revision** of each page. It does not retain the full revision history. The splitter, however, keeps complete page elements and their revisions intact in its output parts.
+
+## Development approach
+
+Keep the data pipeline reliable but proportionate. Once the shared foundations are stable, most development effort should go into the Bottom-Up and Top-Down AI behaviours, their evaluation, and the evidence supporting their results.
+
+Automated tests use synthetic fixtures and temporary databases. The full-dump workflow should be tested locally before relying on it for a complete import.

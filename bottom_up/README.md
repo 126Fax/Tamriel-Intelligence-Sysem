@@ -1,79 +1,66 @@
-# Bottom-up AI – Lore Discovery System
+# Bottom-Up AI – Lore Discovery System
 
-## 1. Application Overview
+## Purpose
 
-The Bottom-up AI application analyses information from the Elder Scrolls universe using data extracted from the UESP Wiki.
+The Bottom-Up AI examines UESP content to discover recurring patterns and propose structured knowledge. Findings must be traceable to source pages and reviewed before being treated as accepted knowledge.
 
-Its purpose is to identify patterns and relationships in the source data, then organise useful findings into a structured knowledge base.
+A wiki link is only a reference between pages. It does not, by itself, establish a semantic relationship.
 
-## 2. Current prototype
+## Current prototype
 
-`bottom_up_ai.py` contains the initial text-pattern and relationship-discovery prototype. It currently uses a small hardcoded list of sentences. It is not yet connected to the SQLite database and its relationship rules are still partly manually specified.
+`bottom_up_ai.py` contains an early text-pattern and relationship-discovery demonstration using a small hardcoded set of sentences. It is not yet connected to the full SQLite dataset.
 
-## 3. Testing with real UESP data
+## Sample workflow
 
-A small, committed UESP XML sample is available so development can continue without the full dump.
+A five-page UESP sample is committed so development and analysis can be repeated without importing the full dump.
 
-From the repository root, explicitly run:
+From the repository root:
 
 ```bash
 python -m bottom_up.run_sample_import
-```
-
-This runs `run_sample_import.py`, which:
-
-- Decodes the small committed UESP sample.
-- Uses the existing XML and namespace readers.
-- Imports five real UESP pages into a separate SQLite database.
-- Stores that database at `data/database/tamriel_sample.db`.
-
-The runner is deliberately separate from `bottom_up_ai.py`. It does not run when the bottom-up module is imported or when the existing prototype is run. It also does not overwrite the main database or `knowledge_base.json`.
-
-The sample database is local generated data and is ignored by Git. Re-running the importer is safe: existing sample pages are not duplicated.
-
-
-## 4. Sample analysis runner
-
-After importing the sample database, run:
-
-```bash
 python -m bottom_up.run_sample_analysis
 ```
 
-This separate runner reads the five stored pages, analyses their wiki markup, and reports page structure and individual outgoing links. Each link is represented with its source page, destination, destination prefix (when present), and display text.
+The sample importer writes to `data/database/tamriel_sample.db`, leaving the main database untouched. The analysis runner reports page structure and outgoing wiki-link references.
 
-These are **wiki link references**, not verified semantic relationships. A link from one page to another does not by itself prove that the source page belongs to, describes, or has any other particular relationship with the destination.
+## Full-dump data workflow
 
-The runner does not change the main database, the existing hardcoded demonstration, or `knowledge_base.json`.
+The full XML dump is kept locally and is not committed to Git.
 
-## 5. Planned development
+Split the dump at complete page boundaries:
 
-The next stages are to test link extraction against a more representative sample of ordinary lore pages, discover recurring patterns across pages, and validate any proposed relationships against source text. Once this works, the same database interface can be used with the full UESP dump.
+```bash
+python -m tools.split_mediawiki_dump --input /path/to/uesp_dump.xml.bz2
+```
 
-Potential techniques include:
+Import all parts as one source dump:
 
-- Statistical pattern discovery.
-- Text similarity and clustering.
-- Natural language processing.
-- Classification, where useful and testable.
+```bash
+python -m bottom_up.run_split_dump_import --manifest data/processed/<dump-name>/manifest.json
+```
 
-These are planned techniques, not capabilities that the current prototype already provides.
+Prepare the imported pages for downstream AI components:
 
-## 6. Testing
+```bash
+python -m bottom_up.run_data_preparation
+```
 
-The existing pipeline tests use a synthetic XML fixture and a temporary SQLite database. The committed UESP sample runners provide additional manual integration checks against real UESP pages.
+The preparation process preserves the original page records and creates separate AI-readable records containing readable text, headings, templates and parameters, wiki links, categories and external links. It does not decide what a link means, approve discoveries or train a model.
 
-The next stages are to connect the bottom-up analysis functions to pages retrieved from the sample database, improve pattern discovery, and test the findings against known examples. Once this works, the same database interface can be used with the full UESP dump.
+See [the data guide](../data/README.md) for the full workflow and local-data rules.
 
-Potential techniques include:
+## Development direction
 
-- Statistical pattern discovery.
-- Text similarity and clustering.
-- Natural language processing.
-- Classification, where useful and testable.
+The next Bottom-Up AI work should focus on a narrow, testable discovery task:
 
-These are planned techniques, not capabilities that the current prototype already provides.
+1. Read prepared pages from the database.
+2. Identify repeated structures or candidate patterns.
+3. Record the source pages and text supporting each finding.
+4. Present discoveries for human review.
+5. Evaluate how often proposed findings are correct.
 
-## 5. Testing
+Potential techniques include statistical pattern discovery, text similarity, clustering and classification. These are options to investigate, not capabilities already implemented.
 
-The existing pipeline tests use a synthetic XML fixture and a temporary SQLite database. The committed UESP sample runner provides an additional manual integration check against real UESP pages.
+## Testing
+
+Automated tests use synthetic XML fixtures and temporary databases. The five-page UESP sample provides an additional manual integration check. The full-dump workflow and its performance still need to be tested in the local project environment before being relied upon for a complete import.
