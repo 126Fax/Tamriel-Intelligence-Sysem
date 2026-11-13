@@ -35,7 +35,7 @@ def main():
     print(f"Groups discovered: {results['cluster_count']}")
 
     for cluster in results["clusters"]:
-        print(f"\\nCluster {cluster['cluster_id']} ({cluster['page_count']} pages)")
+        print(f"\nCluster {cluster['cluster_id']} ({cluster['page_count']} pages)")
         print("Representative terms:", ", ".join(cluster["representative_terms"]))
 
         for page in cluster["pages"]:
