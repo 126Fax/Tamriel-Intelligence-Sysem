@@ -96,10 +96,10 @@ Install the project dependencies:
 pip install -r requirements.txt
 ```
 
-After importing the synthetic fixture or a UESP dump into the database:
+To run the experiment in Codespaces without the full UESP dump, use the committed synthetic fixture. It is loaded into a temporary database, leaving your normal database unchanged:
 
 ```bash
-python -m src.ai.bottom_up.run_clustering --clusters 3
+python -m src.ai.bottom_up.run_clustering --sample-data --clusters 2
 ```
 
 Use `--clusters 2` to ask the algorithm to form two groups instead.
