@@ -1,5 +1,6 @@
-from pathlib import Path
 from time import perf_counter
+
+from config.paths import XML_DUMP_PATH
 
 from src.database.database import (
     get_connection,
@@ -10,9 +11,8 @@ from src.database.database import (
 from src.ingestion.namespaces import read_namespaces
 from src.ingestion.xml_reader import inter_page_data
 
-DUMP_PATH = Path("/home/fax/Downloads/uespwiki-2026-11-01-current.xml.bz2")
 
-DUMP_NAME = DUMP_PATH.name
+DUMP_NAME = XML_DUMP_PATH.name if XML_DUMP_PATH is not None else None
 DUMP_DATE = "2026-11-01"
 BATCH_SIZE = 1000
 
@@ -54,15 +54,22 @@ def get_or_register_dump():
 
 
 def main():
-    if not DUMP_PATH.exists():
-        raise FileNotFoundError(f"Dump not found: {DUMP_PATH}")
+
+    if XML_DUMP_PATH is None:
+        raise RuntimeError(
+            "XML dump path is not configured. "
+            "Set XML_DUMP_PATH in config/local.py."
+        )
+
+    if not XML_DUMP_PATH.exists():
+        raise FileNotFoundError(f"Dump not found: {XML_DUMP_PATH}")
 
     dump_id = get_or_register_dump()
 
     print(f"Source dump ID: {dump_id}")
     print("Reading namespace information...")
 
-    namespace_map = read_namespaces(DUMP_PATH)
+    namespace_map = read_namespaces(XML_DUMP_PATH)
 
     try:
         update_import_status(dump_id, "importing")
@@ -73,7 +80,7 @@ def main():
 
         inserted_count = insert_pages_batch(
             dump_id,
-            inter_page_data(DUMP_PATH),
+            inter_page_data(XML_DUMP_PATH),
             namespace_map,
             batch_size=BATCH_SIZE,
             progress_callback=lambda processed, inserted: report_progress(
