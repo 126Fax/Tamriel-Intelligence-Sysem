@@ -1,0 +1,44 @@
+[
+  {
+    "id": "Q001",
+    "question": "Which province is described in the Skyrim page?",
+    "expected_pages": [
+      "Skyrim"
+    ],
+    "expected_terms": [
+      "province"
+    ]
+  },
+  {
+    "id": "Q002",
+    "question": "What year is associated with the events in the Skyrim page?",
+    "expected_pages": [
+      "Skyrim"
+    ],
+    "expected_terms": [
+      "4E 201"
+    ]
+  },
+  {
+    "id": "Q003",
+    "question": "Which page describes two dated events?",
+    "expected_pages": [
+      "Morrowind"
+    ],
+    "expected_terms": [
+      "2E 582",
+      "2E 583"
+    ]
+  },
+  {
+    "id": "Q004",
+    "question": "What is the latest revision of the revision history example about?",
+    "expected_pages": [
+      "Revision history example"
+    ],
+    "expected_terms": [
+      "latest revision",
+      "1E 420"
+    ]
+  }
+]
