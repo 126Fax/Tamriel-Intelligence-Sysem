@@ -163,3 +163,28 @@ large wiki page is never cut in half and may exceed the requested limit.
 The generated parts can be read by the existing bzip2 MediaWiki ingestion
 reader. Importing all parts into one source-dump record is the next integration
 step; do not treat separate parts as separate knowledge sources.
+
+
+## Importing the split dump
+
+After splitting the original XML, import every part into **one** source-dump
+record (not one record per part):
+
+```bash
+python -m bottom_up.run_split_dump_import \
+  --manifest data/processed/uesp_dump/manifest.json
+```
+
+The importer reads the manifest, checks that every part exists, and imports
+each compressed XML part using the existing MediaWiki namespace and page
+readers. Page IDs remain associated with the same source dump across all parts.
+The importer marks the source dump completed only after every part succeeds.
+
+The import is safe to resume: the existing database uses the source dump and
+page IDs as a key, and duplicate page IDs are ignored. If an import is
+interrupted, rerun the same command with the same manifest. Once imported, run
+the AI-readable preparation step:
+
+```bash
+python -m bottom_up.run_data_preparation
+```
