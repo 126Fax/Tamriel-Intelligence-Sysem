@@ -1,40 +1,38 @@
-# Project Folder Structure
+# Project Structure
 
-## Overview
-
-The project will be organised into separate folders so that the two AI applications, their data and supporting documentation are kept organised.
-
-## Planned Structure
+The repository is organised by responsibility. The structure below describes the current folders rather than a proposed future layout.
 
 ```text
-tamriel-intelligence-system/
-│
-├── documentation/
-│   ├── project-plan.md
-│   └── project-structure.md
-│
+Tamriel-Intelligence-Sysem/
+├── bottom_up/          # Bottom-Up AI prototype and workflow runners
+├── top_down/           # Top-Down question analysis prototype
+├── src/
+│   ├── analysis/       # Page and content analysis
+│   ├── database/       # SQLite access and schema
+│   ├── ingestion/      # MediaWiki XML and namespace readers
+│   └── processing/     # AI-readable data preparation
+├── tools/              # Reusable command-line tools
+├── tests/
+│   └── fixtures/       # Small synthetic XML and evaluation data
 ├── data/
-│   └── README.md
-│
-├── top_down/
-│   └── README.md
-│
-├── bottom_up/
-│   └── README.md
-│
+│   ├── samples/        # Small committed sample input
+│   ├── database/       # Local generated databases (ignored by Git)
+│   └── processed/      # Local split dumps and manifests (ignored by Git)
+├── config/             # Shared paths and ignored local settings
+├── docs/               # AI design and development plan
+├── documentation/      # Project planning and structure notes
 ├── README.md
+├── requirements.txt
 └── .gitignore
 ```
 
-## Folder Purposes
+## Main data flow
 
-- **documentation:** Project planning, design decisions and development notes.
-- **data:** The original dataset and processed data used by the applications.
-- **top_down:** Python code and supporting files for the rule-based Lore Assistant.
-- **bottom_up:** Python code and supporting files for the machine learning Lore Discovery System.
+1. The XML ingestion code reads MediaWiki exports.
+2. The database layer stores the original page text and source metadata.
+3. The preparation layer creates a separate AI-readable representation.
+4. The Bottom-Up and Top-Down systems can use the stored information for their respective tasks.
 
-## Future Development
+## Generated and private data
 
-Additional files and folders will be added as development progresses. For example, Python source files, testing files and processed datasets will be added when they are needed.
-
-The structure may change if development identifies a better way to organise the project.
+The original UESP dump, split XML parts, manifests and SQLite databases are local working data. They should remain outside version control. Only small fixtures and sample inputs intended for the repository should be committed.
