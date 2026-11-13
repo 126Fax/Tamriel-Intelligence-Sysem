@@ -57,7 +57,7 @@ class SyntheticDumpPipelineTests(unittest.TestCase):
 
         results = scan_dataset(self.dump_path)
         self.assertEqual(results["total_pages"], 12)
-        self.assertEqual(results["namespace_counts"][""], 5)
+        self.assertEqual(results["namespace_counts"][""], 6)
         self.assertEqual(results["namespace_counts"]["Category"], 1)
         self.assertEqual(results["namespace_counts"]["Unknown"], 1)
 
