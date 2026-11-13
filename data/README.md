@@ -2,37 +2,42 @@
 
 ## Overview
 
-The Tamriel Intelligence System will use an XML dump from the Unofficial Elder Scrolls Pages (UESP) wiki as its main data source.
+The Tamriel Intelligence System uses XML exports from the Unofficial Elder Scrolls Pages (UESP) wiki as its main data source.
 
-The dump contains a large collection of wiki pages covering different aspects of the Elder Scrolls universe, including characters, locations, history, factions and books.
+The full XML dump is large and is not stored in Git. Each developer keeps their own local copy and configures its path in the ignored `config/local.py` file.
 
-## Data Preparation
+## Small committed sample
 
-The original XML dump will need to be processed before it can be used by the AI applications.
+A miniature sample from the 1 November 2026 UESP dump is committed at:
 
-The planned preparation process includes:
+`data/samples/uesp_sample_5_pages.xml.bz2.base64`
 
-1. **Extracting the data:** Reading the XML dump and accessing individual wiki pages.
-2. **Selecting relevant content:** Identifying pages and information that are useful for the project.
-3. **Cleaning the text:** Removing unnecessary wiki formatting, markup and other unwanted content.
-4. **Organising the information:** Preparing the extracted content in a consistent format.
-5. **Saving the processed data:** Making the cleaned information available to both AI applications.
+It contains five real main-namespace pages: Morrowind, Arena, Bloodmoon, Oblivion and Daggerfall. The compressed XML is Base64-encoded so it can be stored as a small text fixture in Git.
 
-## Use in the AI Applications
+To import it, run the dedicated sample runner from the repository root:
 
-The prepared data will support both applications:
+```bash
+python -m bottom_up.run_sample_import
+```
 
-- **Top-down AI:** The Lore Assistant will search the prepared information to find relevant answers to user questions.
-- **Bottom-up AI:** The Lore Discovery System will analyse the prepared information to identify patterns, similarities or groups within the lore.
+The runner temporarily decodes the fixture and passes it through the existing XML reader, namespace reader and database batch-import functions. It writes to `data/database/tamriel_sample.db`, not the main database. Re-running it does not duplicate pages.
 
-## Data Considerations
+The sample runner is opt-in: importing other project modules does not execute it. The sample database is generated locally and is ignored by Git.
 
-The XML dump may contain missing information, duplicate content, formatting problems and pages that are not relevant to the project.
+## Full data preparation
 
-These issues will need to be considered during data preparation and testing.
+The full-dump workflow will:
 
-The original source and any relevant licensing or attribution requirements will also be checked and acknowledged.
+1. Read the XML dump and extract individual wiki pages.
+2. Select relevant content and namespaces.
+3. Preserve the latest revision text for each page.
+4. Store page metadata and text in SQLite.
+5. Make the stored pages available to the bottom-up and top-down systems.
 
-## Current Status
+The existing XML reader and database modules provide the foundations for this process. The complete full-dump import workflow is still under development.
 
-The data preparation process has not yet been implemented. The XML dump will be examined during development so that an appropriate extraction and cleaning method can be selected.
+## Data considerations
+
+The XML dump may contain duplicate content, redirects, templates, markup, missing information and pages that are not relevant to the project. These need to be considered during analysis.
+
+The original source and relevant licensing or attribution requirements should be acknowledged when the data is used or redistributed.
