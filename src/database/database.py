@@ -65,9 +65,10 @@ def insert_page(dump_id, page_data, namespace_name):
                 namespace_id,
                 namespace_name,
                 revision_id,
-                text_length
+                text_length,
+                page_text
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 dump_id,
@@ -77,6 +78,7 @@ def insert_page(dump_id, page_data, namespace_name):
                 namespace_name,
                 int(page_data["revision_id"]),
                 len(page_data["text"]),
+                page_data["text"],
             ),
         )
 
@@ -114,6 +116,7 @@ def insert_pages_batch(
                     if page_data["revision_id"] is not None
                     else None,
                     len(page_data["text"]),
+                    page_data["text"],
                 )
             )
 
@@ -131,9 +134,10 @@ def insert_pages_batch(
                         namespace_id,
                         namespace_name,
                         revision_id,
-                        text_length
+                        text_length,
+                        page_text
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     batch,
                 )
@@ -209,6 +213,18 @@ def migrate_database():
                 """
             )
 
+        page_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(pages)")
+        }
+
+        if "page_text" not in page_columns:
+            connection.execute(
+                """
+                ALTER TABLE pages
+                ADD COLUMN page_text TEXT NOT NULL DEFAULT ''
+                """
+            )
+
         connection.commit()
 
     finally:
@@ -248,5 +264,71 @@ def update_import_status(dump_id, status):
 
         connection.commit()
 
+    finally:
+        connection.close()
+
+
+
+def search_pages(search_term, limit=10):
+    """Search page titles and stored wiki text for a simple keyword or phrase."""
+    search_term = search_term.strip()
+
+    if not search_term:
+        raise ValueError("Search term cannot be empty.")
+
+    if limit < 1:
+        raise ValueError("Search limit must be at least 1.")
+
+    connection = get_connection()
+
+    try:
+        return connection.execute(
+            """
+            SELECT
+                page_id,
+                title,
+                namespace_name,
+                revision_id,
+                text_length,
+                page_text
+            FROM pages
+            WHERE title LIKE ? OR page_text LIKE ?
+            ORDER BY
+                CASE WHEN title LIKE ? THEN 0 ELSE 1 END,
+                text_length DESC
+            LIMIT ?
+            """,
+            (
+                f"%{search_term}%",
+                f"%{search_term}%",
+                f"%{search_term}%",
+                limit,
+            ),
+        ).fetchall()
+    finally:
+        connection.close()
+
+
+def get_page_by_title(title):
+    """Return the most recently imported page matching an exact title."""
+    connection = get_connection()
+
+    try:
+        return connection.execute(
+            """
+            SELECT
+                page_id,
+                title,
+                namespace_name,
+                revision_id,
+                text_length,
+                page_text
+            FROM pages
+            WHERE title = ?
+            ORDER BY dump_id DESC
+            LIMIT 1
+            """,
+            (title,),
+        ).fetchone()
     finally:
         connection.close()
