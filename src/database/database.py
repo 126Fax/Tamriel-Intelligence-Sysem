@@ -164,9 +164,10 @@ def insert_pages_batch(
                     namespace_id,
                     namespace_name,
                     revision_id,
-                    text_length
+                    text_length,
+                    page_text
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 batch,
             )
