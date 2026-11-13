@@ -139,10 +139,10 @@ class SyntheticDumpPipelineTests(unittest.TestCase):
                 self.assertIsNotNone(stored_page)
                 self.assertIn("Skyrim", stored_page["page_text"])
 
-                search_results = database.search_pages("dragon")
+                search_results = database.search_pages("province")
                 self.assertTrue(search_results)
                 self.assertTrue(
-                    any("dragon" in row["page_text"].lower() for row in search_results)
+                    any("province" in row["page_text"].lower() for row in search_results)
                 )
 
                 database.update_import_status(dump_id, "completed")
