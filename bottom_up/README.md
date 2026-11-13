@@ -128,3 +128,38 @@ The pipeline deliberately does not decide what a link means, infer semantic
 relationships, classify entities, train a model or approve knowledge. Those
 are responsibilities of the Bottom-Up AI that will be built on top of this
 prepared dataset.
+
+## Splitting a full UESP XML dump
+
+Large dumps do not need to be committed to Git. Keep the original dump on your
+computer and use the splitter to create smaller, valid MediaWiki XML documents.
+The source file is never modified, and pages (including their revisions,
+templates and wiki markup) are kept intact.
+
+The splitter supports plain XML, gzip and bzip2 input. It writes bzip2-compressed
+parts and a `manifest.json` describing the source and every part.
+
+From the repository root:
+
+```bash
+python -m tools.split_mediawiki_dump --input /path/to/uesp_dump.xml.bz2
+```
+
+By default, parts are written under `data/processed/<dump-name>/` with an
+approximate uncompressed page-data limit of 90 MB per part. You can choose a
+different output directory or size:
+
+```bash
+python -m tools.split_mediawiki_dump \
+  --input /path/to/uesp_dump.xml.bz2 \
+  --output-dir data/processed/uesp \
+  --max-size-mb 90
+```
+
+The size limit is measured using the uncompressed serialized page XML. This
+keeps a safety margin below GitHub's 100 MB per-file limit; a single unusually
+large wiki page is never cut in half and may exceed the requested limit.
+
+The generated parts can be read by the existing bzip2 MediaWiki ingestion
+reader. Importing all parts into one source-dump record is the next integration
+step; do not treat separate parts as separate knowledge sources.
