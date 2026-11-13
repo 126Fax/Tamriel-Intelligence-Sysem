@@ -1,9 +1,45 @@
 """Run the first bottom-up page-clustering experiment."""
 
 import argparse
+import bz2
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
 from src.ai.bottom_up.clustering import discover_page_clusters
-from src.database.database import get_pages_for_analysis
+from src.database import database
+from src.ingestion.namespaces import read_namespaces
+from src.ingestion.xml_reader import inter_page_data
+
+
+def load_sample_pages():
+    """Load the committed synthetic fixture into a temporary database."""
+    project_root = Path(__file__).resolve().parents[3]
+    fixture_path = (
+        project_root / "tests" / "fixtures" / "sample_wiki_dump.xml.fixture"
+    )
+
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        temporary_path = Path(temporary_directory)
+        dump_path = temporary_path / "sample_wiki_dump.xml.bz2"
+        database_path = temporary_path / "sample_database.db"
+
+        with fixture_path.open("rb") as source_file:
+            with bz2.open(dump_path, "wb") as dump_file:
+                dump_file.write(source_file.read())
+
+        with patch.object(database, "DATABASE_PATH", database_path):
+            database.initialise_database()
+            database.migrate_database()
+
+            dump_id = database.register_source_dump(dump_path.name)
+            database.insert_pages_batch(
+                dump_id,
+                inter_page_data(dump_path),
+                read_namespaces(dump_path),
+            )
+
+            return list(database.get_pages_for_analysis(namespace_id=0))
 
 
 def main():
@@ -16,9 +52,18 @@ def main():
         default=3,
         help="Number of groups for the algorithm to discover (default: 3).",
     )
+    parser.add_argument(
+        "--sample-data",
+        action="store_true",
+        help="Run against the small committed fixture without changing the main database.",
+    )
     args = parser.parse_args()
 
-    pages = get_pages_for_analysis(namespace_id=0)
+    if args.sample_data:
+        pages = load_sample_pages()
+        print("Using the synthetic test dataset.")
+    else:
+        pages = database.get_pages_for_analysis(namespace_id=0)
 
     if not pages:
         print("No main-namespace page text was found in the database.")
