@@ -23,8 +23,6 @@ The remaining work is intentionally limited. Advanced parsing of every wiki temp
 
 ## Stage 2 — Simple AI prototypes
 
-- [ ] First bottom-up prototype: TF-IDF text features and unsupervised K-means page clustering, with representative terms for each group. Awaiting test run.
-
 
 ### Bottom-up prototype
 
