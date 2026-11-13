@@ -1,21 +1,12 @@
-
 import json
 
-from config.paths import PROCESSED_DIR, XML_DUMP_PATH
+from config.paths import PROCESSED_DIR, get_xml_dump_path
 from src.analysis.dataset_scanner import scan_dataset
 
 
 def main():
-    if XML_DUMP_PATH is None:
-        raise RuntimeError(
-            "XML dump path is not configured. "
-            "Set XML_DUMP_PATH in config/local.py."
-        )
-
-    if not XML_DUMP_PATH.exists():
-        raise FileNotFoundError(f"XML dump not found: {XML_DUMP_PATH}")
-
-    results = scan_dataset(XML_DUMP_PATH)
+    xml_dump_path = get_xml_dump_path()
+    results = scan_dataset(xml_dump_path)
 
     report = {
         "total_pages": results["total_pages"],
