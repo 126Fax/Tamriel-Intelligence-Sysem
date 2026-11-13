@@ -50,7 +50,7 @@ def discover_page_clusters(pages, number_of_clusters=3, top_term_count=5):
 
     vectorizer = TfidfVectorizer(
         stop_words="english",
-        token_pattern=r"(?u)\\b[a-zA-Z][a-zA-Z]+\\b",
+        token_pattern=r"(?u)\b[a-zA-Z][a-zA-Z]+\b",
     )
     page_vectors = vectorizer.fit_transform(documents)
 
