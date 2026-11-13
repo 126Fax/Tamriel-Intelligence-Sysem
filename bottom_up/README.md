@@ -77,3 +77,54 @@ These are planned techniques, not capabilities that the current prototype alread
 ## 5. Testing
 
 The existing pipeline tests use a synthetic XML fixture and a temporary SQLite database. The committed UESP sample runner provides an additional manual integration check against real UESP pages.
+
+## AI-readable data preparation pipeline
+
+The original imported pages remain in the `pages` table. The preparation pipeline
+reads those records and writes a separate representation to `ai_pages`; it does
+not rewrite the original wiki text.
+
+From the repository root, after importing a dump:
+
+```bash
+python -m bottom_up.run_data_preparation
+```
+
+By default, this prepares the latest completed source dump. You can select a
+specific dump and change the batch size:
+
+```bash
+python -m bottom_up.run_data_preparation --dump-id 1 --batch-size 250
+```
+
+To rebuild the prepared representation with the current parser:
+
+```bash
+python -m bottom_up.run_data_preparation --dump-id 1 --force
+```
+
+The pipeline stores:
+
+- Readable text with common wiki markup removed.
+- Headings and their levels.
+- Templates and their parameters, including raw and readable parameter values.
+- Wiki links, destinations and display text.
+- Category names.
+- External links.
+- Source dump, page and revision identifiers.
+- A SHA-256 hash of the original page text and the parser version.
+
+JSON fields are stored as JSON text in SQLite and decoded into Python lists and
+dictionaries by the retrieval functions. Prepared pages can be read using
+`get_prepared_page()` or streamed using `iter_prepared_pages()` from
+`src.processing.ai_preparation`.
+
+Preparation is incremental: pages already prepared with the current processor
+version are skipped. Processing uses bounded batches, and each completed batch
+is committed independently. This allows a failed run to be resumed without
+starting from the beginning. Use `--force` to rebuild existing records.
+
+The pipeline deliberately does not decide what a link means, infer semantic
+relationships, classify entities, train a model or approve knowledge. Those
+are responsibilities of the Bottom-Up AI that will be built on top of this
+prepared dataset.
