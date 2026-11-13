@@ -336,32 +336,3 @@ def get_page_by_title(title):
         ).fetchone()
     finally:
         connection.close()
-
-
-
-def get_pages_for_analysis(namespace_id=0, min_text_length=1):
-    """Return stored pages suitable for text analysis."""
-    if min_text_length < 0:
-        raise ValueError("Minimum text length cannot be negative.")
-
-    connection = get_connection()
-
-    try:
-        return connection.execute(
-            """
-            SELECT
-                page_id,
-                title,
-                namespace_id,
-                namespace_name,
-                revision_id,
-                page_text
-            FROM pages
-            WHERE namespace_id = ?
-              AND LENGTH(TRIM(page_text)) >= ?
-            ORDER BY title
-            """,
-            (namespace_id, min_text_length),
-        ).fetchall()
-    finally:
-        connection.close()
