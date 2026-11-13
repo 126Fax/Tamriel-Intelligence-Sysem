@@ -2,50 +2,47 @@
 
 ## 1. Project Description
 
-The Tamriel Intelligence System is an AI programming project developed using Python. It will explore two different artificial intelligence approaches using information from the Unofficial Elder Scrolls Pages (UESP) Wiki.
+The Tamriel Intelligence System is a Python AI project that explores two cooperating approaches to Elder Scrolls lore using information from the Unofficial Elder Scrolls Pages (UESP) Wiki.
 
 ## 2. Project Aims
 
-- Develop an NLP application using a top-down AI approach.
-- Develop a machine learning application using a bottom-up AI approach.
-- Process and extract useful information from the UESP XML dump.
-- Investigate how different AI techniques can use the same knowledge source.
+- Develop a Top-Down AI that interprets questions and retrieves relevant lore.
+- Develop a Bottom-Up AI that examines source information, discovers patterns and proposes structured knowledge.
+- Use a shared source dataset while keeping the responsibilities of the two AI systems separate.
+- Trace proposed knowledge and answers back to their supporting wiki pages.
 - Evaluate and compare the two approaches.
 
 ## 3. Planned Applications
 
-### 3.1 Top-down AI
+### 3.1 Top-Down AI
 
-A rule-based NLP application designed to interpret user questions and retrieve relevant information from the Elder Scrolls knowledge base.
+A question-answering system that interprets a user's question, identifies the information required, retrieves relevant knowledge and produces an evidence-based answer.
 
-Potential techniques:
-- Keyword recognition.
-- Pattern matching.
-- Rule-based question classification.
-- Knowledge-base searching.
+Potential techniques include keyword recognition, pattern matching, question classification and structured retrieval.
 
-### 3.2 Bottom-up AI
+### 3.2 Bottom-Up AI
 
-A machine learning application designed to learn patterns from information contained within the UESP database.
+A discovery system that analyses wiki content to identify recurring structures, patterns and candidate relationships. It should record supporting evidence and allow proposed discoveries to be reviewed before they become accepted knowledge.
 
-The specific machine learning technique and application will be decided during development.
+Potential techniques include statistical analysis, natural language processing, similarity measures, clustering and supervised learning where suitable.
 
-## 4. Data Source
+## 4. Data Source and Preparation
 
-The primary data source will be an XML dump of the Unofficial Elder Scrolls Pages (UESP) Wiki.
+The primary source is a UESP MediaWiki XML dump. The original page content is imported into SQLite. A separate preparation process creates readable text and structured representations while retaining source identifiers and provenance.
 
-The XML data will need to be processed and converted into a format suitable for both applications.
+The current importer stores the latest revision of each page. Full historical revision storage is not part of the current implementation.
+
+A wiki link is treated as a reference between pages, not automatic proof of a semantic relationship.
 
 ## 5. Development Technologies
 
 - Python
-- Git
-- GitHub
-- Visual Studio Code
-- XML processing libraries
-- Natural Language Processing techniques
-- Machine learning libraries
+- SQLite
+- lxml
+- mwparserfromhell
+- Git and GitHub
+- Natural language processing and machine learning techniques selected during development
 
-## 6. Development Status
+## 6. Current Development Position
 
-Initial project setup and planning.
+The repository contains the shared XML and database foundations, a small real-data sample, early AI prototypes, a page-aware dump splitter and an AI-readable preparation pipeline. The next priority is to connect the Bottom-Up discovery process to the prepared database and evaluate a narrow discovery task.
