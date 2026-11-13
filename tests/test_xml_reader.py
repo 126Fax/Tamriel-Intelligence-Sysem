@@ -1,12 +1,20 @@
 from collections import Counter
 
+from config.paths import XML_DUMP_PATH
 from src.ingestion.xml_reader import NAMESPACE, read_pages
-
-DUMP_PATH = "/home/fax/Downloads/uespwiki-2026-11-01-current.xml.bz2"
 
 namespace_counts = Counter()
 
-for page in read_pages(DUMP_PATH):
+if XML_DUMP_PATH is None:
+    raise RuntimeError(
+        "XML dump path is not configured. "
+        "Set XML_DUMP_PATH in config/local.py."
+    )
+
+if not XML_DUMP_PATH.exists():
+    raise FileNotFoundError(f"XML dump not found: {XML_DUMP_PATH}")
+
+for page in read_pages(XML_DUMP_PATH):
     namespace = page.findtext(f"{NAMESPACE}ns")
     namespace_counts[namespace] += 1
 
