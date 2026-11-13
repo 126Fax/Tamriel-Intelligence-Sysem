@@ -2,76 +2,48 @@
 
 ## 1. Application Overview
 
-The Bottom-up AI application will use machine learning techniques to analyse information from the Elder Scrolls universe using data extracted from the UESP Wiki.
+The Bottom-up AI application analyses information from the Elder Scrolls universe using data extracted from the UESP Wiki.
 
-Unlike the top-down application, this system will learn patterns from data rather than relying entirely on manually programmed rules.
+Its purpose is to identify patterns and relationships in the source data, then organise useful findings into a structured knowledge base.
 
-## 2. Problem Being Addressed
+## 2. Current prototype
 
-The UESP Wiki contains a large amount of information about characters, locations, events and other aspects of the Elder Scrolls universe.
+`bottom_up_ai.py` contains the initial text-pattern and relationship-discovery prototype. It currently uses a small hardcoded list of sentences. It is not yet connected to the SQLite database and its relationship rules are still partly manually specified.
 
-Identifying similarities and patterns across this information manually can be time-consuming.
+## 3. Testing with real UESP data
 
-This application aims to explore how machine learning can help discover and organise information within a large knowledge base.
+A small, committed UESP XML sample is available so development can continue without the full dump.
 
-## 3. Intended Users
+From the repository root, explicitly run:
 
-- Elder Scrolls fans interested in exploring lore.
-- Researchers interested in fictional world-building.
-- Users looking to discover similarities between lore entries.
+```bash
+python -m bottom_up.run_sample_import
+```
 
-## 4. Proposed AI Techniques
+This runs `run_sample_import.py`, which:
 
-The application will use a bottom-up AI approach, where behaviour is developed through learning from data.
+- Decodes the small committed UESP sample.
+- Uses the existing XML and namespace readers.
+- Imports five real UESP pages into a separate SQLite database.
+- Stores that database at `data/database/tamriel_sample.db`.
+
+The runner is deliberately separate from `bottom_up_ai.py`. It does not run when the bottom-up module is imported or when the existing prototype is run. It also does not overwrite the main database or `knowledge_base.json`.
+
+The sample database is local generated data and is ignored by Git. Re-running the importer is safe: existing sample pages are not duplicated.
+
+## 4. Planned development
+
+The next stages are to connect the bottom-up analysis functions to pages retrieved from the sample database, improve pattern discovery, and test the findings against known examples. Once this works, the same database interface can be used with the full UESP dump.
 
 Potential techniques include:
 
-- Machine learning.
-- Clustering.
-- Classification.
+- Statistical pattern discovery.
+- Text similarity and clustering.
 - Natural language processing.
-- Similarity analysis.
+- Classification, where useful and testable.
 
-The final techniques will be selected during development based on the available data and project requirements.
+These are planned techniques, not capabilities that the current prototype already provides.
 
-## 5. Proposed Features
+## 5. Testing
 
-- Analyse information extracted from the UESP Wiki.
-- Identify similarities between lore entries.
-- Group related information using machine learning.
-- Explore patterns within character and location descriptions.
-- Present the results in an understandable format.
-
-## 6. Data Source
-
-The application will use information extracted from the UESP Wiki XML dump.
-
-The data will need to be cleaned, processed and converted into a suitable format for machine learning.
-
-## 7. Development and Testing
-
-The application will be developed using Python.
-
-Potential libraries include:
-
-- pandas for data processing.
-- scikit-learn for machine learning.
-- NumPy for numerical operations.
-
-Testing will cover:
-
-- Data quality.
-- Model performance.
-- Prediction or clustering results.
-- Unseen data.
-- Limitations and reliability.
-
-## 8. Future Improvements
-
-Potential improvements include:
-
-- Comparing different machine learning algorithms.
-- Analysing additional categories of lore.
-- Improving the quality of extracted information.
-- Exploring neural networks.
-- Developing visual representations of discovered patterns.
+The existing pipeline tests use a synthetic XML fixture and a temporary SQLite database. The committed UESP sample runner provides an additional manual integration check against real UESP pages.
