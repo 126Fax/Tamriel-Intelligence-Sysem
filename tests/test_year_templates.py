@@ -1,19 +1,22 @@
 from collections import Counter
 import re
+
 import mwparserfromhell
 
+from config.paths import get_xml_dump_path
 from src.ingestion.xml_reader import inter_page_data
 
-DUMP_PATH = "/home/fax/Downloads/uespwiki-2026-11-01-current.xml.bz2"
+
 YEAR_PATTERN = re.compile(r"\{\{\s*Year\s*(?:\||\}\})")
 
 
 def main():
+    xml_dump_path = get_xml_dump_path()
     year_values = Counter()
     pages_with_year = 0
     total_year_templates = 0
 
-    for page in inter_page_data(DUMP_PATH):
+    for page in inter_page_data(xml_dump_path):
         page_text = page["text"]
 
         if YEAR_PATTERN.search(page_text) is None:
