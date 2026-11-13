@@ -16,8 +16,8 @@ These components support both AI approaches:
 - [x] Store page metadata in SQLite.
 - [x] Store the complete page text in SQLite.
 - [x] Provide basic title and text keyword retrieval.
-- [ ] Add a small, repeatable set of sample questions and expected source pages for evaluation.
-- [ ] Verify the importer against the real UESP dump after the synthetic tests pass.
+- [x] Add a small, repeatable set of sample questions and expected source pages for evaluation.
+- [ ] Optional: verify one import against the full UESP dump when it is available locally. This is not a blocker for starting the AI prototypes.
 
 The remaining work is intentionally limited. Advanced parsing of every wiki template, full historical revision storage, distributed processing, and large-scale search infrastructure are outside the initial prototype scope unless later testing proves they are needed.
 
