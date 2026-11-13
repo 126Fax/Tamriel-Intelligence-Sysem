@@ -5,8 +5,9 @@ from src.ingestion.namespaces import read_namespaces
 
 
 def scan_dataset(file_path):
-    namespace_count = Counter()
+    namespace_counts = Counter()
     total_pages = 0
+
     namespace_map = read_namespaces(file_path)
 
     for page_data in inter_page_data(file_path):
@@ -17,7 +18,7 @@ def scan_dataset(file_path):
 
         total_pages += 1
 
-        return {
-            "total_pages": total_pages,
-            "namespcae_counts": namespcae_counts,
-        }
+    return {
+        "total_pages": total_pages,
+        "namespace_counts": namespace_counts,
+    }
