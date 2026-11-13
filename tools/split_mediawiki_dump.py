@@ -57,18 +57,18 @@ class PartWriter:
         self.path = Path(path)
         self.handle = bz2.open(self.path, "wb")
         self.xml_file = etree.xmlfile(self.handle, encoding="utf-8")
-        self.xml_file.__enter__()
-        self.xml_file.write_declaration()
-        self.root_context = self.xml_file.element(
+        self.xml_writer = self.xml_file.__enter__()
+        self.xml_writer.write_declaration()
+        self.root_context = self.xml_writer.element(
             root.tag,
             attrib=dict(root.attrib),
-            nsmap={**root.nsmap, "xml": "http://www.w3.org/XML/1998/namespace"},
+            nsmap=root.nsmap,
         )
         self.root_context.__enter__()
-        self.xml_file.write(siteinfo)
+        self.xml_writer.write(siteinfo)
 
     def write_page(self, page):
-        self.xml_file.write(page)
+        self.xml_writer.write(page)
 
     def close(self):
         if self.root_context is not None:
