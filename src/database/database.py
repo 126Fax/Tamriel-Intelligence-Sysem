@@ -95,6 +95,9 @@ def insert_pages_batch(
     batch_size=1000,
     progress_callback=None,
 ):
+    if batch_size < 1:
+        raise ValueError("Batch size must be at least 1.")
+
     connection = get_connection()
 
     inserted_count = 0
