@@ -1,14 +1,17 @@
 from time import perf_counter
 import re
+
 import mwparserfromhell
 
+from config.paths import get_xml_dump_path
 from src.ingestion.xml_reader import inter_page_data
 
-DUMP_PATH = "/home/fax/Downloads/uespwiki-2026-11-01-current.xml.bz2"
+
 YEAR_PATTERN = re.compile(r"\{\{\s*Year\s*(?:\||\}\})")
 
 
 def main():
+    xml_dump_path = get_xml_dump_path()
     total_pages = 0
     candidate_pages = 0
     pages_with_year = 0
@@ -18,7 +21,7 @@ def main():
     filter_time = 0
     parsing_time = 0
 
-    page_iterator = iter(inter_page_data(DUMP_PATH))
+    page_iterator = iter(inter_page_data(xml_dump_path))
 
     while True:
         start = perf_counter()
