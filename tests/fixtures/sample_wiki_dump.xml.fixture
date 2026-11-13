@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.10/" version="0.10" xml:lang="en">
+  <siteinfo>
+    <sitename>UESP Synthetic Test Wiki</sitename>
+    <dbname>uesp_test</dbname>
+    <base>https://example.invalid/wiki/Main_Page</base>
+    <generator>MediaWiki 1.40.0</generator>
+    <case>first-letter</case>
+    <namespaces>
+      <namespace key="-2" case="first-letter">Media</namespace>
+      <namespace key="-1" case="first-letter">Special</namespace>
+      <namespace key="0" case="first-letter" />
+      <namespace key="1" case="first-letter">Talk</namespace>
+      <namespace key="2" case="first-letter">User</namespace>
+      <namespace key="6" case="first-letter">File</namespace>
+      <namespace key="10" case="first-letter">Template</namespace>
+      <namespace key="14" case="first-letter">Category</namespace>
+    </namespaces>
+  </siteinfo>
+
+  <page>
+    <title>Skyrim</title><ns>0</ns><id>100</id>
+    <revision><id>1001</id><timestamp>2026-01-01T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>Initial synthetic article</comment><text xml:space="preserve">Skyrim is a fictional province in this synthetic test dataset. Its events are associated with {{Year|4E 201}}.</text><model>wikitext</model><format>text/x-wiki</format></revision>
+  </page>
+
+  <page>
+    <title>Oblivion</title><ns>0</ns><id>101</id>
+    <revision><id>1002</id><timestamp>2026-01-02T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>Short article</comment><text xml:space="preserve">A short synthetic article about Oblivion.</text><model>wikitext</model><format>text/x-wiki</format></revision>
+  </page>
+
+  <page>
+    <title>Morrowind</title><ns>0</ns><id>102</id>
+    <revision><id>1003</id><timestamp>2026-01-03T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>Longer article with multiple year templates</comment><text xml:space="preserve">Morrowind is used to test longer page text. The first event happened in {{Year|2E 582}}, while another event happened in {{Year|2E 583}}. This extra text makes the page longer than the other examples and helps exercise the page-length statistics.</text><model>wikitext</model><format>text/x-wiki</format></revision>
+  </page>
+
+  <page>
+    <title>Daggerfall</title><ns>0</ns><id>103</id>
+    <revision><id>1004</id><timestamp>2026-01-04T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>Year template example</comment><text xml:space="preserve">The events in this example are dated {{Year|3E 427}}.</text><model>wikitext</model><format>text/x-wiki</format></revision>
+  </page>
+
+  <page>
+    <title>Arena</title><ns>0</ns><id>104</id>
+    <revision><id>1005</id><timestamp>2026-01-05T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>Empty page text</comment><text xml:space="preserve"></text><model>wikitext</model><format>text/x-wiki</format></revision>
+  </page>
+
+  <page>
+    <title>Category:Games</title><ns>14</ns><id>105</id>
+    <revision><id>1006</id><timestamp>2026-01-06T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>Category namespace example</comment><text xml:space="preserve">Synthetic category page.</text><model>wikitext</model><format>text/x-wiki</format></revision>
+  </page>
+
+  <page>
+    <title>File:Map.jpg</title><ns>6</ns><id>106</id>
+    <revision><id>1007</id><timestamp>2026-01-07T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>File namespace example</comment><text xml:space="preserve">Synthetic file description.</text><model>wikitext</model><format>text/x-wiki</format></revision>
+  </page>
+
+  <page>
+    <title>Template:Year</title><ns>10</ns><id>107</id>
+    <revision><id>1008</id><timestamp>2026-01-08T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>Template namespace example</comment><text xml:space="preserve">A synthetic template definition.</text><model>wikitext</model><format>text/x-wiki</format></revision>
+  </page>
+
+  <page>
+    <title>Talk:Skyrim</title><ns>1</ns><id>108</id>
+    <revision><id>1009</id><timestamp>2026-01-09T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>Talk namespace example</comment><text xml:space="preserve">A synthetic talk page.</text><model>wikitext</model><format>text/x-wiki</format></revision>
+  </page>
+
+  <page>
+    <title>User:TestEditor</title><ns>2</ns><id>109</id>
+    <revision><id>1010</id><timestamp>2026-01-10T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>User namespace example</comment><text xml:space="preserve">A synthetic user page.</text><model>wikitext</model><format>text/x-wiki</format></revision>
+  </page>
+
+  <page>
+    <title>Unknown namespace example</title><ns>99</ns><id>110</id>
+    <revision><id>1011</id><timestamp>2026-01-11T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>Unknown namespace example</comment><text xml:space="preserve">This page uses a namespace ID not listed in siteinfo.</text><model>wikitext</model><format>text/x-wiki</format></revision>
+  </page>
+
+  <page>
+    <title>Revision history example</title><ns>0</ns><id>111</id>
+    <revision><id>1012</id><timestamp>2026-01-12T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>Old revision</comment><text xml:space="preserve">This is the old revision and should not be returned.</text><model>wikitext</model><format>text/x-wiki</format></revision>
+    <revision><id>1013</id><timestamp>2026-01-13T00:00:00Z</timestamp><contributor><username>TestEditor</username><id>1</id></contributor><comment>Latest revision</comment><text xml:space="preserve">This is the latest revision. Its year is {{Year|1E 420}} and {{Year|4E 201}}.</text><model>wikitext</model><format>text/x-wiki</format></revision>
+  </page>
+
+  <page>
+    <title>Page without revision</title><ns>0</ns><id>112</id>
+  </page>
+</mediawiki>
