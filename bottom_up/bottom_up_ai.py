@@ -1,21 +1,7 @@
 import json
 from itertools import combinations
 
-pages = [
-    "Skyrim is a province of the Empire",
-    "Morrowind is a province of the Empire",
-    "Dragons live in Skyrim",
-    "The Nords are native to Skyrim",
-    "Cyrodiil is a province of the Empire",
-    "Hammerfell is a province of the Empire",
-    "High Rock is a province of the Empire"
-]
-
 stop_words = {"the", "is", "a", "of", "in", "are", "to"}
-
-for page in pages:
-    if "province" in page:
-        print(page)
 
 def discover_word_patterns(pages):
     word_counts = {}
@@ -183,15 +169,6 @@ def discover_province_relationships(pages):
 
     return relationships
 
-province_ending = " is a province of the Empire"
-
-subjects = extract_all_subjects(pages, province_ending)
-
-print("\n===== EXTRACTED PROVINCES =====")
-
-for subject in subjects:
-    print(subject)
-
 def compare_all_sentences(pages):
     for sentence1, sentence2 in combinations(pages, 2):
             if len(sentence1.split()) != len(sentence2.split()):
@@ -234,13 +211,6 @@ def discover_shared_patterns(pages):
 
     return shared_patterns
 
-province_relationships = discover_province_relationships(pages)
-
-print("\n===== PROVINCE RELATIONSHIPS =====")
-
-for relationship in province_relationships:
-    print(relationship)
-
 def assign_pattern_meanings(shared_patterns):
     for pattern, details in shared_patterns.items():
         if pattern == "[VARIABLE] is a province of the Empire":
@@ -268,44 +238,77 @@ def load_knowledge_base():
 
     return knowledge_base
 
-patterns = discover_word_patterns(pages)
-ranked_patterns = rank_patterns(patterns)
-phrases = discover_phrases(pages)
-ranked_phrases = rank_patterns(phrases)
-sentence_patterns = discover_sentence_patterns(pages)
-ranked_sentence_patterns = rank_patterns(sentence_patterns)
 
-generate_report(ranked_patterns, ranked_phrases, ranked_sentence_patterns)
-relationships = discover_relationships(pages)
-shared_patterns = discover_shared_patterns(pages)
-assign_pattern_meanings(shared_patterns)
-knowledge_base = build_knowledge_base( relationships, province_relationships)
-save_knowledge_base(knowledge_base)
-print("\nDiscovered relationships:")
+def main():
+    """Run the original hardcoded demonstration when this file is executed."""
+    pages = [
+        "Skyrim is a province of the Empire",
+        "Morrowind is a province of the Empire",
+        "Dragons live in Skyrim",
+        "The Nords are native to Skyrim",
+        "Cyrodiil is a province of the Empire",
+        "Hammerfell is a province of the Empire",
+        "High Rock is a province of the Empire"
+    ]
 
-for relationship in relationships:
-    print(relationship)
+    for page in pages:
+        if "province" in page:
+            print(page)
 
-print("\nDiscovered shared patterns:")
+    province_ending = " is a province of the Empire"
+    subjects = extract_all_subjects(pages, province_ending)
 
-for pattern, details in shared_patterns.items():
-    print(f"Pattern: {pattern}")
-    print(f"Meaning: {details['meaning']}")
-    print(f"Sentence count: {len(details['sentences'])}")
-    print(f"Sentences: {details['sentences']}")
-    print(f"Variable values: {details['words']}")
+    print("\n===== EXTRACTED PROVINCES =====")
+    for subject in subjects:
+        print(subject)
 
-print("\n===== KNOWLEDGE BASE =====")
+    province_relationships = discover_province_relationships(pages)
 
-for entry in knowledge_base:
-    print(entry)
+    print("\n===== PROVINCE RELATIONSHIPS =====")
+    for relationship in province_relationships:
+        print(relationship)
 
-loaded_knowledge = load_knowledge_base()
+    patterns = discover_word_patterns(pages)
+    ranked_patterns = rank_patterns(patterns)
+    phrases = discover_phrases(pages)
+    ranked_phrases = rank_patterns(phrases)
+    sentence_patterns = discover_sentence_patterns(pages)
+    ranked_sentence_patterns = rank_patterns(sentence_patterns)
+    
+    generate_report(ranked_patterns, ranked_phrases, ranked_sentence_patterns)
+    relationships = discover_relationships(pages)
+    shared_patterns = discover_shared_patterns(pages)
+    assign_pattern_meanings(shared_patterns)
+    knowledge_base = build_knowledge_base( relationships, province_relationships)
+    save_knowledge_base(knowledge_base)
+    print("\nDiscovered relationships:")
+    
+    for relationship in relationships:
+        print(relationship)
+    
+    print("\nDiscovered shared patterns:")
+    
+    for pattern, details in shared_patterns.items():
+        print(f"Pattern: {pattern}")
+        print(f"Meaning: {details['meaning']}")
+        print(f"Sentence count: {len(details['sentences'])}")
+        print(f"Sentences: {details['sentences']}")
+        print(f"Variable values: {details['words']}")
+    
+    print("\n===== KNOWLEDGE BASE =====")
+    
+    for entry in knowledge_base:
+        print(entry)
+    
+    loaded_knowledge = load_knowledge_base()
+    
+    print("\n===== LOADED KNOWLEDGE BASE =====")
+    
+    for entry in loaded_knowledge:
+        print(entry)
+    
+    compare_all_sentences(pages)
+    save_knowledge_base(knowledge_base)
 
-print("\n===== LOADED KNOWLEDGE BASE =====")
-
-for entry in loaded_knowledge:
-    print(entry)
-
-compare_all_sentences(pages)
-save_knowledge_base(knowledge_base)
+if __name__ == "__main__":
+    main()
