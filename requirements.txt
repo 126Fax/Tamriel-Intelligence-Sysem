@@ -1,3 +1,0 @@
-lxml
-mwparserfromhell
-scikit-learn
