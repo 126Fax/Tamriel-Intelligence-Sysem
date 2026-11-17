@@ -1,71 +1,43 @@
-# Top-down AI – Lore Assistant
+# Top-Down AI — Lore Question Answering
 
-## 1. Application Overview
+The Top-Down AI is a small rule-based question-answering application for the
+Elder Scrolls universe. It analyses a user's question, retrieves matching
+subject–relationship–object facts from the project's JSON knowledge base, and
+generates a readable answer.
 
-The Top-down AI application will be a rule-based Natural Language Processing (NLP) system designed to answer questions about the Elder Scrolls universe using information from the UESP Wiki.
+## Run it
 
-The application will allow users to enter questions in natural language and retrieve relevant information from its knowledge base.
+From the repository root:
 
-## 2. Problem Being Addressed
+```bash
+python -m top_down
+```
 
-The Elder Scrolls universe contains a large amount of information spread across thousands of wiki pages.
+Ask a question and type `exit` to close the application.
 
-Finding specific information can require users to search through multiple pages and manually identify relevant details.
+Example questions supported by the current demonstration knowledge base:
 
-This application aims to make accessing that information easier through a conversational interface.
+- Which provinces belong to the Empire?
+- Where do dragons live?
+- What do we know about Skyrim?
 
-## 3. Intended Users
+## Test it
 
-- Elder Scrolls fans interested in the lore.
-- Players looking for information about characters, locations and events.
-- Users who want to explore relationships between different parts of the fictional universe.
+From the repository root:
 
-## 4. Proposed AI Techniques
+```bash
+python -m unittest discover -s tests -v
+```
 
-The application will use a top-down approach, where its behaviour is determined by explicitly programmed rules and knowledge.
+## How it works
 
-Potential techniques include:
+1. `question_analyser.py` normalises the question and identifies a relationship.
+2. `knowledge_retriever.py` finds known entities and retrieves matching facts.
+3. `answer_generator.py` turns the retrieved facts into a response.
+4. `main.py` connects the stages in an interactive command-line application.
 
-- Keyword recognition.
-- Pattern matching.
-- Rule-based question classification.
-- Knowledge-base retrieval.
-- Predefined response generation.
+The current implementation uses explicit Python rules. It is not a trained
+language model and it does not invent facts when the knowledge base has no match.
 
-## 5. Proposed Features
-
-- Accept questions written in natural language.
-- Identify the subject and intent of a question.
-- Search the knowledge base for relevant information.
-- Retrieve information about characters, locations and events.
-- Return understandable responses to the user.
-- Handle questions that the system cannot recognise.
-
-## 6. Data Source
-
-The application will use information extracted from the UESP Wiki XML dump.
-
-The data will need to be processed and organised into a searchable knowledge base.
-
-## 7. Development and Testing
-
-The application will be developed using Python.
-
-Testing will cover:
-
-- Recognised questions.
-- Unknown questions.
-- Incorrect spelling and alternative wording.
-- Questions containing multiple keywords.
-- Missing information in the knowledge base.
-- Accuracy of retrieved information.
-
-## 8. Future Improvements
-
-Potential improvements include:
-
-- More advanced natural language recognition.
-- Improved knowledge-base relationships.
-- Conversation context.
-- Additional search capabilities.
-- A graphical user interface.
+See [the AI system documentation](../docs/AI_SYSTEM.md) for the full design,
+data flow, setup, testing and limitations.
