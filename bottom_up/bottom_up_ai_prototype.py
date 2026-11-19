@@ -117,23 +117,12 @@ def discover_sentence_patterns(pages):
 
     return pattern_counts
 
-def compare_sentences(sentence1, sentence2):
-    words1 = sentence1.split()
-    words2 = sentence2.split()
-
-    differences = []
-    matching_words = []
-    pattern = []
-
-    for i in range(min(len(words1), len(words2))):
-        if words1[i] != words2[i]:
-            differences.append((words1[i], words2[i]))
-            pattern.append("[VARIABLE]")
-        else:
-            matching_words.append(words1[i])
-            pattern.append(words1[i])
-
-    return differences, matching_words, pattern
+# Keep discovery logic separate from the original demonstration.
+from bottom_up.pattern_discovery import (
+    compare_sentences,
+    discover_shared_patterns,
+    find_specialisations,
+)
 
 def extract_subject(sentence, ending):
     if sentence.endswith(ending):
@@ -171,8 +160,6 @@ def discover_province_relationships(pages):
 
 def compare_all_sentences(pages):
     for sentence1, sentence2 in combinations(pages, 2):
-            if len(sentence1.split()) != len(sentence2.split()):
-                continue
             differences, matching_words, pattern = compare_sentences(sentence1, sentence2)
 
             print("\nComparing:")
