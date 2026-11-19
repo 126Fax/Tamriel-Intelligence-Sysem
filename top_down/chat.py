@@ -9,13 +9,13 @@ def main():
     print("Tamriel Intelligence System — Top-Down AI")
     print("Ask about lore, request a count, or ask what the system knows.")
     print("Examples: 'What do you know about Skyrim?', 'How many provinces are there?'")
-    print("Type 'exit' or 'quit' to stop.\\n")
+    print("Type 'exit' or 'quit' to stop.\n")
 
     while True:
         try:
             question = input("You: ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("\\nGoodbye.")
+            print("\nGoodbye.")
             break
         if question.casefold() in {"exit", "quit"}:
             print("Goodbye.")
