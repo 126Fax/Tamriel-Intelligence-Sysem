@@ -20,6 +20,10 @@ class BroadQuestionAnalysisTests(unittest.TestCase):
         self.assertEqual(result["intent"], "lookup")
         self.assertEqual(result["subject_hint"], "skyrim")
 
+    def test_what_are_question_extracts_plural_topic(self):
+        result = analyse_question("What are the continents?")
+        self.assertEqual(result["subject_hint"], "continents")
+
     def test_who_is_question_extracts_person_or_character(self):
         result = analyse_question("Who is Vivec?")
         self.assertEqual(result["subject_hint"], "vivec")
@@ -36,7 +40,7 @@ class BroadQuestionAnalysisTests(unittest.TestCase):
         self.assertEqual(identify_intent("Tell me a random fact"), "random_fact")
 
     def test_unknown_question_is_sent_to_search_not_crashed(self):
-        self.assertEqual(identify_intent("Explain the Dragon Break"), "search")
+        self.assertEqual(identify_intent("Explain the Dragon Break"), "lookup")
 
 
 if __name__ == "__main__":
