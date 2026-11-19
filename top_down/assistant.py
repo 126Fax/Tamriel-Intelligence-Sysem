@@ -24,9 +24,14 @@ def _answer_count(target):
             f"There are {result['count']} {result['label']} in my reference catalogue: "
             f"{', '.join(result['entities'])}. {result['note']}"
         )
+    sources = list(dict.fromkeys(
+        item.get("source") for item in result.get("evidence", [])
+        if item.get("source")
+    ))
+    source_text = f" Example source pages: {', '.join(sources[:8])}." if sources else ""
     return (
         f"I found {result['count']} distinct {result['label']} record(s) "
-        f"in the structured database. {result['note']}"
+        f"in the structured database. {result['note']}{source_text}"
     )
 
 
