@@ -83,6 +83,38 @@ class FullPipelineTests(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_template_parameters_are_extracted_with_source_evidence(self):
+        result = analyse_dump(self.dump_id, batch_size=1)
+        self.assertGreaterEqual(result["template_parameters_extracted"], 4)
+
+        connection = database.get_connection()
+        try:
+            rows = connection.execute(
+                """
+                SELECT template_name, parameter_name, parameter_value,
+                       raw_value, evidence_text, extraction_method
+                FROM page_template_parameters
+                WHERE source_title = 'Lore:Bravil'
+                ORDER BY parameter_index
+                """
+            ).fetchall()
+            self.assertEqual(len(rows), 4)
+            values = {
+                row["parameter_name"]: row["parameter_value"] for row in rows
+            }
+            self.assertEqual(values["continent"], "Tamriel")
+            self.assertEqual(values["province"], "Cyrodiil")
+            self.assertEqual(values["region"], "Nibenay Valley")
+            self.assertEqual(values["settlement"], "Bravil")
+            self.assertTrue(all(row["raw_value"] for row in rows))
+            self.assertTrue(all("Lore Place Summary" in row["evidence_text"] for row in rows))
+            self.assertTrue(all(
+                row["extraction_method"] == "template_parameter_v1"
+                for row in rows
+            ))
+        finally:
+            connection.close()
+
     def test_analysis_rerun_rebuilds_without_duplicate_rows(self):
         analyse_dump(self.dump_id)
         first = analyse_dump(self.dump_id)
