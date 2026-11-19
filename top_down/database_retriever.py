@@ -68,7 +68,7 @@ def count_entities(target):
                 rows = connection.execute(
                     """SELECT DISTINCT source_title, evidence_text
                        FROM page_template_parameters
-                       WHERE lower(parameter_name) IN ('type','category','kind')
+                       WHERE parameter_name COLLATE NOCASE IN ('type','category','kind')
                          AND lower(parameter_value) LIKE '%continent%'"""
                 ).fetchall()
             else:
@@ -76,7 +76,7 @@ def count_entities(target):
                 rows = connection.execute(
                     f"""SELECT DISTINCT source_title, evidence_text
                         FROM page_template_parameters
-                        WHERE lower(parameter_name) IN ({placeholders})
+                        WHERE parameter_name COLLATE NOCASE IN ({placeholders})
                           AND lower(parameter_value) LIKE ?""",
                     (*OCCUPATION_FIELDS, f"%{term}%"),
                 ).fetchall()
