@@ -1,71 +1,68 @@
 # Top-down AI – Lore Assistant
 
-## 1. Application Overview
+## Current working prototype
 
-The Top-down AI application will be a rule-based Natural Language Processing (NLP) system designed to answer questions about the Elder Scrolls universe using information from the UESP Wiki.
+The first end-to-end rule-based question-answering prototype is now runnable. It connects three stages:
 
-The application will allow users to enter questions in natural language and retrieve relevant information from its knowledge base.
+1. **Question analysis** – recognises a small set of natural-language question patterns and extracts subject/object hints.
+2. **Knowledge retrieval** – loads and validates `knowledge_base.json`, then finds matching subject–relationship–object records.
+3. **Answer generation** – turns matching records into a short answer and refuses to guess when no matching fact is stored.
 
-## 2. Problem Being Addressed
+This is an explainable Python prototype, not an LLM. Its language understanding is intentionally limited to the patterns described below.
 
-The Elder Scrolls universe contains a large amount of information spread across thousands of wiki pages.
+## Run it
 
-Finding specific information can require users to search through multiple pages and manually identify relevant details.
+From the repository root:
 
-This application aims to make accessing that information easier through a conversational interface.
+```bash
+python -m top_down.chat
+```
 
-## 3. Intended Users
+You can also ask one question from a Python script:
 
-- Elder Scrolls fans interested in the lore.
-- Players looking for information about characters, locations and events.
-- Users who want to explore relationships between different parts of the fictional universe.
+```python
+from top_down.assistant import answer_question
 
-## 4. Proposed AI Techniques
+result = answer_question("Where do dragons live?")
+print(result["answer"])
+print(result["facts"])
+```
 
-The application will use a top-down approach, where its behaviour is determined by explicitly programmed rules and knowledge.
+The default knowledge-base path is the repository's root-level `knowledge_base.json`. To use a different JSON file, pass its path as the second argument to `answer_question`.
 
-Potential techniques include:
+## Supported question patterns
 
-- Keyword recognition.
-- Pattern matching.
-- Rule-based question classification.
-- Knowledge-base retrieval.
-- Predefined response generation.
+| Example | Expected behaviour |
+|---|---|
+| `Which provinces belong to the Empire?` | Finds all records with relationship `province` and object `Empire`. |
+| `Where do dragons live?` | Finds the `lives in` fact for `Dragons`. |
+| `Who rules Skyrim?` | Searches for a `rules` relationship pointing to Skyrim; currently returns an honest no-information answer because the sample data has no such fact. |
 
-## 5. Proposed Features
+The current six sample records are manually supplied prototype data. They are not claimed to have been discovered automatically from the 477,491-page UESP dump.
 
-- Accept questions written in natural language.
-- Identify the subject and intent of a question.
-- Search the knowledge base for relevant information.
-- Retrieve information about characters, locations and events.
-- Return understandable responses to the user.
-- Handle questions that the system cannot recognise.
+## Test it
 
-## 6. Data Source
+Run the full repository test suite:
 
-The application will use information extracted from the UESP Wiki XML dump.
+```bash
+python -m unittest discover -s tests -p "test_*.py" -v
+```
 
-The data will need to be processed and organised into a searchable knowledge base.
+The top-down tests cover question parsing, retrieval, answer generation, unknown questions, and malformed knowledge-base files.
 
-## 7. Development and Testing
+## Current limitations
 
-The application will be developed using Python.
+- Pattern-based question recognition; it does not understand arbitrary natural language.
+- Exact entity matching after case and whitespace normalisation.
+- No inference beyond the stored triples.
+- No source-page provenance is currently attached to the sample facts.
+- The sample knowledge base is small and manually authored.
+- It is not yet connected to facts extracted from the full UESP database.
 
-Testing will cover:
+## Next development steps
 
-- Recognised questions.
-- Unknown questions.
-- Incorrect spelling and alternative wording.
-- Questions containing multiple keywords.
-- Missing information in the knowledge base.
-- Accuracy of retrieved information.
-
-## 8. Future Improvements
-
-Potential improvements include:
-
-- More advanced natural language recognition.
-- Improved knowledge-base relationships.
-- Conversation context.
-- Additional search capabilities.
-- A graphical user interface.
+1. Add source-page IDs and evidence snippets to every extracted fact.
+2. Connect retrieval to the bottom-up system's structured output.
+3. Expand question patterns and test paraphrases.
+4. Evaluate answer accuracy against a larger set of questions.
+5. Consider semantic retrieval only after the rule-based baseline is measurable.
