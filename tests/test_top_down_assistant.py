@@ -36,12 +36,12 @@ class TopDownAssistantTests(unittest.TestCase):
         self.assertEqual(len(result["facts"]), 5)
         for province in ("Skyrim", "Morrowind", "Cyrodiil", "Hammerfell", "High Rock"):
             self.assertIn(province, result["answer"])
-        self.assertIn("5", str(result["knowledge_base_records"]))
+        self.assertEqual(result["knowledge_base_records"], 6)
 
     def test_finds_where_dragons_live(self):
         result = self.ask("Where do dragons live?")
         self.assertEqual(result["facts"], [SAMPLE_FACTS[-1]])
-        self.assertIn("Dragons lives in Skyrim", result["answer"])
+        self.assertIn("Skyrim as the location for Dragons", result["answer"])
 
     def test_does_not_invent_who_rules_skyrim(self):
         result = self.ask("Who rules Skyrim?")
