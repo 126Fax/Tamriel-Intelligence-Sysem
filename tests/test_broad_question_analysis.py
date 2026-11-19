@@ -29,6 +29,12 @@ class BroadQuestionAnalysisTests(unittest.TestCase):
         self.assertEqual(result["count"], 9)
         self.assertEqual(result["basis"], "curated_reference_catalog")
 
+    def test_knowledge_overview_intent_is_recognised(self):
+        self.assertEqual(identify_intent("What do you know?"), "overview")
+
+    def test_random_fact_intent_is_recognised(self):
+        self.assertEqual(identify_intent("Tell me a random fact"), "random_fact")
+
     def test_unknown_question_is_sent_to_search_not_crashed(self):
         self.assertEqual(identify_intent("Explain the Dragon Break"), "search")
 
