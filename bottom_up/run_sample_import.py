@@ -91,7 +91,11 @@ def import_sample():
     print("===== UESP SAMPLE IMPORT =====")
     print(f"New pages inserted: {inserted_count}")
     print(f"Pages in sample database: {total_count}")
-    print(f"Database: {SAMPLE_DATABASE_PATH.relative_to(PROJECT_ROOT)}")
+    try:
+        display_path = SAMPLE_DATABASE_PATH.relative_to(PROJECT_ROOT)
+    except ValueError:
+        display_path = SAMPLE_DATABASE_PATH
+    print(f"Database: {display_path}")
 
 
 def main():

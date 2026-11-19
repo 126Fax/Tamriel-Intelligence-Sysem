@@ -2,47 +2,90 @@
 
 ## Project overview
 
-The Tamriel Intelligence System is a Python AI project that explores two approaches to working with Elder Scrolls lore from the UESP Wiki:
+The Tamriel Intelligence System is a Python AI project that explores two cooperating approaches to Elder Scrolls lore from the UESP Wiki:
 
-- **Bottom-up AI:** examines wiki content, identifies recurring features and patterns, and uses those patterns to organise or classify information.
-- **Top-down AI:** takes a user's question, interprets what information is needed, retrieves relevant lore, and produces an answer using the stored knowledge.
+- **Bottom-up AI:** examines wiki content, identifies recurring features and patterns, and organises knowledge into a structured form.
+- **Top-down AI:** interprets a user's question, retrieves relevant facts from that structured knowledge, and produces an answer.
 
-The aim is to build small, understandable working examples of both approaches and evaluate how they differ. The project is not intended to recreate the entire UESP website or build a production-scale search engine.
+The aim is to build understandable working examples, test them, and gradually connect them. The two systems are not yet fully integrated.
 
-## Development approach
+## Current working components
 
-The project is being developed in three broad stages:
+- Compressed MediaWiki XML reading and page import into SQLite.
+- A five-page UESP sample import and structural analysis demonstration.
+- A bottom-up prototype for basic pattern and relationship exploration.
+- A rule-based top-down question-answering prototype using `knowledge_base.json`.
+- Automated tests and GitHub Actions CI.
 
-1. **Shared foundations:** reliable XML reading, a small test dataset, storage of page content, and reusable retrieval functions.
-2. **AI prototypes:** a simple bottom-up pattern-discovery prototype and a simple top-down question-and-retrieval prototype.
-3. **Evaluation:** test both approaches against a consistent set of lore questions or analysis tasks, record their limitations, and compare their results.
+## Quick start
 
-Data preparation is deliberately kept proportionate to the AI objectives. The synthetic MediaWiki fixture allows development and testing without repeatedly processing the full UESP dump.
+Install dependencies:
 
-## Current foundations
+```bash
+python -m pip install -r requirements.txt
+```
 
-- Reads compressed MediaWiki XML exports.
-- Reads namespace information from the export.
-- Extracts the latest revision of each page.
-- Analyses basic dataset and page-length statistics.
-- Imports page metadata and full page text into SQLite in batches.
-- Provides basic keyword retrieval from stored page titles and text.
-- Includes a synthetic XML fixture and integration tests.
+Run the full automated test suite:
 
-## Technologies
+```bash
+python -m unittest discover -s tests -p "test_*.py" -v
+```
 
-- Python
-- SQLite
-- XML processing with lxml
-- Wiki markup parsing with mwparserfromhell
-- Git and GitHub
+Run the bottom-up sample demonstration:
 
-## Data setup
+```bash
+python -m bottom_up.run_demo
+```
 
-The full UESP XML dump is not stored in Git. Configure its location locally in config/local.py using XML_DUMP_PATH. The example configuration should contain a path on the machine running the project.
+Run the top-down question-answering prototype:
 
-The committed synthetic fixture is used by automated tests and does not require the full dump.
+```bash
+python -m top_down.chat
+```
 
-## Project status
+The top-down prototype currently uses six manually supplied sample facts in `knowledge_base.json`. It can answer the example questions supported by those facts, but it does not yet query all 477,491 pages or automatically use bottom-up discoveries.
 
-The shared foundations are being completed before the two AI prototypes are developed. The next major milestone is to build and evaluate the first simple AI behaviour, rather than expanding the data pipeline indefinitely.
+## Full UESP data and bottom-up pipeline
+
+The full UESP XML dump is not stored in Git. Keep it locally under `data/raw/`. The full pipeline streams the dump into SQLite, analyses the imported pages, stores extracted links and evidence-backed candidate relationships, and rebuilds `knowledge_base.json` for the top-down prototype.
+
+Run the full workflow:
+
+```bash
+python -m bottom_up.run_full_pipeline
+```
+
+If the dump is already imported and you only want to rerun bottom-up analysis:
+
+```bash
+python -m bottom_up.run_full_pipeline --skip-import
+```
+
+See [docs/FULL_DUMP_PIPELINE.md](docs/FULL_DUMP_PIPELINE.md) for the database tables, batch settings and current extraction limits. The committed synthetic fixtures are used for automated tests and do not require the full dump.
+
+## Architecture and next steps
+
+The intended data flow is:
+
+```text
+UESP XML
+   |
+   v
+Bottom-up analysis
+   |
+   v
+Structured knowledge + source evidence
+   |
+   v
+Top-down question analysis
+   |
+   v
+Knowledge retrieval
+   |
+   v
+Evidence-based answer
+```
+
+The next major milestone is to make bottom-up discoveries produce traceable facts that the top-down system can retrieve, then evaluate both systems against a repeatable test set.
+
+See [top_down/README.md](top_down/README.md) for the current question-answering prototype and [docs/TESTING_AND_DEMO.md](docs/TESTING_AND_DEMO.md) for testing instructions.

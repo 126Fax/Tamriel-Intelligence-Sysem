@@ -1,0 +1,297 @@
+"""Full-dump bottom-up analysis with traceable SQLite evidence.
+
+This first production-sized pass deliberately extracts conservative, explicit
+relationships. It does not claim that every wiki link is a semantic fact.
+"""
+import json
+import re
+from pathlib import Path
+
+import mwparserfromhell
+
+from src.database import database
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_KNOWLEDGE_BASE_PATH = PROJECT_ROOT / "knowledge_base.json"
+DEFAULT_BATCH_SIZE = 250
+
+# Explicit sentence patterns only: every result retains the original sentence.
+FACT_PATTERNS = (
+    (
+        "province",
+        re.compile(
+            r"\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+"
+            r"(?:a|an)\s+province\s+of\s+"
+            r"(?P<object>[A-Z][\w' -]{0,70}?)(?=[.!?;]|$)",
+            re.IGNORECASE,
+        ),
+        0.95,
+    ),
+    (
+        "lives in",
+        re.compile(
+            r"\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+"
+            r"lives?\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)"
+            r"(?=[.!?;]|$)",
+            re.IGNORECASE,
+        ),
+        0.90,
+    ),
+    (
+        "located in",
+        re.compile(
+            r"\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+"
+            r"is\s+located\s+in\s+"
+            r"(?P<object>[A-Z][\w' -]{0,70}?)(?=[.!?;]|$)",
+            re.IGNORECASE,
+        ),
+        0.90,
+    ),
+)
+
+
+def ensure_analysis_schema(connection):
+    """Create analysis tables without changing or deleting imported pages."""
+    connection.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS page_analysis (
+            dump_id INTEGER NOT NULL,
+            page_id INTEGER NOT NULL,
+            template_count INTEGER NOT NULL,
+            wikilink_count INTEGER NOT NULL,
+            heading_count INTEGER NOT NULL,
+            tag_count INTEGER NOT NULL,
+            analysed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (dump_id, page_id),
+            FOREIGN KEY (dump_id, page_id)
+                REFERENCES pages(dump_id, page_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS page_links (
+            link_id INTEGER PRIMARY KEY,
+            dump_id INTEGER NOT NULL,
+            source_page_id INTEGER NOT NULL,
+            source_title TEXT NOT NULL,
+            destination TEXT NOT NULL,
+            display_text TEXT NOT NULL,
+            FOREIGN KEY (dump_id, source_page_id)
+                REFERENCES pages(dump_id, page_id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_page_links_destination
+            ON page_links(destination);
+        CREATE INDEX IF NOT EXISTS idx_page_links_source
+            ON page_links(dump_id, source_page_id);
+
+        CREATE TABLE IF NOT EXISTS candidate_facts (
+            fact_id INTEGER PRIMARY KEY,
+            dump_id INTEGER NOT NULL,
+            source_page_id INTEGER NOT NULL,
+            source_title TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            relationship TEXT NOT NULL,
+            object TEXT NOT NULL,
+            evidence_text TEXT NOT NULL,
+            extraction_method TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            FOREIGN KEY (dump_id, source_page_id)
+                REFERENCES pages(dump_id, page_id) ON DELETE CASCADE,
+            UNIQUE (
+                dump_id, source_page_id, subject, relationship, object,
+                evidence_text
+            )
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_candidate_facts_lookup
+            ON candidate_facts(relationship, subject, object);
+        """
+    )
+
+
+def _clean_entity(value):
+    """Remove wiki leftovers and surrounding punctuation from an entity."""
+    value = re.sub(r"\[\[([^]|]+)(?:\|([^]]+))?\]\]", lambda m: m.group(2) or m.group(1), value)
+    value = re.sub(r"\s+", " ", value)
+    value = value.strip(" \t\r\n.,:;!?()[]{}'\"")
+    value = re.sub(r"^(?:the|a|an)\s+", "", value, flags=re.IGNORECASE)
+    return value
+
+
+def extract_candidate_facts(plain_text, source_page_id, source_title):
+    """Extract a small set of explicit sentence relationships with evidence."""
+    facts = []
+    # Sentence splitting is intentionally conservative; evidence is retained.
+    for sentence in re.split(r"(?<=[.!?])\s+|\n+", plain_text):
+        sentence = re.sub(r"\s+", " ", sentence).strip()
+        if not sentence:
+            continue
+        for relationship, pattern, confidence in FACT_PATTERNS:
+            for match in pattern.finditer(sentence):
+                subject = _clean_entity(match.group("subject"))
+                obj = _clean_entity(match.group("object"))
+                if not subject or not obj or subject.casefold() == obj.casefold():
+                    continue
+                facts.append({
+                    "source_page_id": int(source_page_id),
+                    "source_page": source_title,
+                    "subject": subject,
+                    "relationship": relationship,
+                    "object": obj,
+                    "evidence": sentence[:2000],
+                    "extraction_method": "explicit_sentence_pattern_v1",
+                    "confidence": confidence,
+                })
+    # Preserve order while avoiding duplicate pattern hits in the same sentence.
+    unique = []
+    seen = set()
+    for fact in facts:
+        key = (fact["subject"].casefold(), fact["relationship"],
+               fact["object"].casefold(), fact["evidence"])
+        if key not in seen:
+            seen.add(key)
+            unique.append(fact)
+    return unique
+
+
+def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None):
+    """Analyse every imported page for one dump and persist evidence in SQLite."""
+    if batch_size < 1:
+        raise ValueError("Batch size must be at least 1.")
+
+    connection = database.get_connection()
+    processed = links_found = facts_found = 0
+    try:
+        ensure_analysis_schema(connection)
+        dump = connection.execute(
+            "SELECT dump_id FROM source_dumps WHERE dump_id = ?", (dump_id,)
+        ).fetchone()
+        if dump is None:
+            raise ValueError(f"Dump ID {dump_id} does not exist.")
+
+        # A rerun rebuilds only derived analysis for this dump.
+        connection.execute("DELETE FROM candidate_facts WHERE dump_id = ?", (dump_id,))
+        connection.execute("DELETE FROM page_links WHERE dump_id = ?", (dump_id,))
+        connection.execute("DELETE FROM page_analysis WHERE dump_id = ?", (dump_id,))
+        connection.commit()
+
+        cursor = connection.execute(
+            """
+            SELECT page_id, title, page_text
+            FROM pages
+            WHERE dump_id = ?
+            ORDER BY page_id
+            """,
+            (dump_id,),
+        )
+        while True:
+            rows = cursor.fetchmany(batch_size)
+            if not rows:
+                break
+            for page in rows:
+                wikicode = mwparserfromhell.parse(page["page_text"] or "")
+                templates = wikicode.filter_templates()
+                links = wikicode.filter_wikilinks()
+                headings = wikicode.filter_headings()
+                tags = wikicode.filter_tags()
+                plain_text = wikicode.strip_code(
+                    normalize=True, collapse=True
+                )
+                connection.execute(
+                    """
+                    INSERT INTO page_analysis
+                    (dump_id, page_id, template_count, wikilink_count,
+                     heading_count, tag_count)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (dump_id, page["page_id"], len(templates), len(links),
+                     len(headings), len(tags)),
+                )
+                for link in links:
+                    destination = str(link.title).strip()
+                    display = (
+                        str(link.text).strip()
+                        if link.text is not None else destination
+                    )
+                    connection.execute(
+                        """
+                        INSERT INTO page_links
+                        (dump_id, source_page_id, source_title, destination, display_text)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (dump_id, page["page_id"], page["title"],
+                         destination, display),
+                    )
+                    links_found += 1
+
+                for fact in extract_candidate_facts(
+                    plain_text, page["page_id"], page["title"]
+                ):
+                    connection.execute(
+                        """
+                        INSERT OR IGNORE INTO candidate_facts
+                        (dump_id, source_page_id, source_title, subject,
+                         relationship, object, evidence_text,
+                         extraction_method, confidence)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (dump_id, fact["source_page_id"], fact["source_page"],
+                         fact["subject"], fact["relationship"], fact["object"],
+                         fact["evidence"], fact["extraction_method"],
+                         fact["confidence"]),
+                    )
+                    facts_found += 1
+                processed += 1
+
+            connection.commit()
+            if progress_callback is not None:
+                progress_callback(processed, links_found, facts_found)
+
+        return {
+            "pages_analysed": processed,
+            "wiki_links_extracted": links_found,
+            "candidate_facts_extracted": facts_found,
+        }
+    finally:
+        connection.close()
+
+
+def build_knowledge_base(dump_id, output_path=DEFAULT_KNOWLEDGE_BASE_PATH):
+    """Export candidate facts, including provenance, for top-down retrieval."""
+    connection = database.get_connection()
+    try:
+        ensure_analysis_schema(connection)
+        rows = connection.execute(
+            """
+            SELECT subject, relationship, object, source_page_id,
+                   source_title, evidence_text, extraction_method, confidence
+            FROM candidate_facts
+            WHERE dump_id = ?
+            ORDER BY relationship, subject COLLATE NOCASE, object COLLATE NOCASE
+            """,
+            (dump_id,),
+        ).fetchall()
+        facts = [
+            {
+                "subject": row["subject"],
+                "relationship": row["relationship"],
+                "object": row["object"],
+                "source_page_id": row["source_page_id"],
+                "source_page": row["source_title"],
+                "evidence": row["evidence_text"],
+                "extraction_method": row["extraction_method"],
+                "confidence": row["confidence"],
+            }
+            for row in rows
+        ]
+    finally:
+        connection.close()
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = output_path.with_suffix(output_path.suffix + ".tmp")
+    temporary_path.write_text(
+        json.dumps(facts, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary_path.replace(output_path)
+    return {"knowledge_facts": len(facts), "knowledge_base_path": str(output_path)}
