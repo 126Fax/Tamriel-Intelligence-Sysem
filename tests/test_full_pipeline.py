@@ -32,6 +32,18 @@ class FullPipelineTests(unittest.TestCase):
                 "namespace": "0", "revision_id": "20",
                 "text": "Dragons live in [[Skyrim]].",
             },
+            {
+                "page_id": "3", "title": "Lore:Bravil", "namespace": "0",
+                "revision_id": "30",
+                "text": (
+                    "{{Lore Place Summary\n"
+                    "|continent=Tamriel\n"
+                    "|province=Cyrodiil\n"
+                    "|region=Nibenay Valley\n"
+                    "|settlement=Bravil\n"
+                    "}}"
+                ),
+            },
         ]
         database.insert_pages_batch(
             self.dump_id, self.pages, {0: ""}, batch_size=2
@@ -53,7 +65,7 @@ class FullPipelineTests(unittest.TestCase):
 
     def test_full_analysis_persists_page_structure_links_and_facts(self):
         result = analyse_dump(self.dump_id, batch_size=1)
-        self.assertEqual(result["pages_analysed"], 2)
+        self.assertEqual(result["pages_analysed"], 3)
         self.assertGreaterEqual(result["wiki_links_extracted"], 2)
         self.assertGreaterEqual(result["candidate_facts_extracted"], 2)
 
@@ -61,7 +73,7 @@ class FullPipelineTests(unittest.TestCase):
         try:
             self.assertEqual(connection.execute(
                 "SELECT COUNT(*) FROM page_analysis"
-            ).fetchone()[0], 2)
+            ).fetchone()[0], 3)
             self.assertGreaterEqual(connection.execute(
                 "SELECT COUNT(*) FROM page_links"
             ).fetchone()[0], 2)
@@ -71,15 +83,59 @@ class FullPipelineTests(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_template_parameters_are_extracted_with_source_evidence(self):
+        result = analyse_dump(self.dump_id, batch_size=1)
+        self.assertGreaterEqual(result["template_parameters_extracted"], 4)
+
+        connection = database.get_connection()
+        try:
+            rows = connection.execute(
+                """
+                SELECT template_name, parameter_name, parameter_value,
+                       raw_value, evidence_text, extraction_method
+                FROM page_template_parameters
+                WHERE source_title = 'Lore:Bravil'
+                ORDER BY parameter_index
+                """
+            ).fetchall()
+            self.assertEqual(len(rows), 4)
+            values = {
+                row["parameter_name"]: row["parameter_value"] for row in rows
+            }
+            self.assertEqual(values["continent"], "Tamriel")
+            self.assertEqual(values["province"], "Cyrodiil")
+            self.assertEqual(values["region"], "Nibenay Valley")
+            self.assertEqual(values["settlement"], "Bravil")
+            self.assertTrue(all(row["raw_value"] for row in rows))
+            self.assertTrue(all("Lore Place Summary" in row["evidence_text"] for row in rows))
+            self.assertTrue(all(
+                row["extraction_method"] == "template_parameter_v1"
+                for row in rows
+            ))
+        finally:
+            connection.close()
+
     def test_analysis_rerun_rebuilds_without_duplicate_rows(self):
         analyse_dump(self.dump_id)
+        connection = database.get_connection()
+        try:
+            first_parameter_count = connection.execute(
+                "SELECT COUNT(*) FROM page_template_parameters"
+            ).fetchone()[0]
+        finally:
+            connection.close()
+
         first = analyse_dump(self.dump_id)
-        self.assertEqual(first["pages_analysed"], 2)
+        self.assertEqual(first["pages_analysed"], 3)
         connection = database.get_connection()
         try:
             self.assertEqual(connection.execute(
                 "SELECT COUNT(*) FROM page_analysis"
-            ).fetchone()[0], 2)
+            ).fetchone()[0], 3)
+            second_parameter_count = connection.execute(
+                "SELECT COUNT(*) FROM page_template_parameters"
+            ).fetchone()[0]
+            self.assertEqual(second_parameter_count, first_parameter_count)
         finally:
             connection.close()
 

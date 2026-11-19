@@ -149,12 +149,15 @@ activemq-data/
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# Environments: ignore the primary environment and any numbered copies
 .env
 .envrc
 .venv
+.venv*/
 env/
+env*/
 venv/
+venv*/
 ENV/
 env.bak/
 venv.bak/
@@ -223,6 +226,7 @@ __marimo__/
 data/database/*.db
 data/database/*.db-journal
 data/processed/
+data/cleaner/
 
 # Original UESP XML dumps
 *.xml
