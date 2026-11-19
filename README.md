@@ -14,6 +14,7 @@ The aim is to build understandable working examples, test them, and gradually co
 - Compressed MediaWiki XML reading and page import into SQLite.
 - A five-page UESP sample import and structural analysis demonstration.
 - A bottom-up prototype for basic pattern and relationship exploration.
+- A Knowledge Cleaner prototype that reviews candidate facts and records approval, rejection or review decisions.
 - A rule-based top-down question-answering prototype using `knowledge_base.json`.
 - Automated tests and GitHub Actions CI.
 
@@ -36,6 +37,14 @@ Run the bottom-up sample demonstration:
 ```bash
 python -m bottom_up.run_demo
 ```
+
+Run the Knowledge Cleaner against the generated candidate facts:
+
+```bash
+python -m cleaner.run_cleaner
+```
+
+The Cleaner reads `knowledge_base.json` without modifying it and writes an auditable review report to `data/cleaner/cleaner_results.json`. See [docs/KNOWLEDGE_CLEANER.md](docs/KNOWLEDGE_CLEANER.md) for its decisions and limitations.
 
 Run the top-down question-answering prototype:
 
