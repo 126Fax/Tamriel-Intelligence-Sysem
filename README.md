@@ -38,6 +38,10 @@ Run the bottom-up sample demonstration:
 python -m bottom_up.run_demo
 ```
 
+The standalone sentence-pattern discovery functions are available from
+`bottom_up.pattern_discovery`. They support multi-word variable values,
+configurable support thresholds and pattern-specialisation analysis.
+
 Run the Knowledge Cleaner against the generated candidate facts:
 
 ```bash
