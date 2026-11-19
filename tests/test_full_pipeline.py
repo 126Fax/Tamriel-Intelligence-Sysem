@@ -117,6 +117,14 @@ class FullPipelineTests(unittest.TestCase):
 
     def test_analysis_rerun_rebuilds_without_duplicate_rows(self):
         analyse_dump(self.dump_id)
+        connection = database.get_connection()
+        try:
+            first_parameter_count = connection.execute(
+                "SELECT COUNT(*) FROM page_template_parameters"
+            ).fetchone()[0]
+        finally:
+            connection.close()
+
         first = analyse_dump(self.dump_id)
         self.assertEqual(first["pages_analysed"], 3)
         connection = database.get_connection()
@@ -124,6 +132,10 @@ class FullPipelineTests(unittest.TestCase):
             self.assertEqual(connection.execute(
                 "SELECT COUNT(*) FROM page_analysis"
             ).fetchone()[0], 3)
+            second_parameter_count = connection.execute(
+                "SELECT COUNT(*) FROM page_template_parameters"
+            ).fetchone()[0]
+            self.assertEqual(second_parameter_count, first_parameter_count)
         finally:
             connection.close()
 
