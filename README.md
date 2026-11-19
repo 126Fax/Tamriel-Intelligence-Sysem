@@ -43,6 +43,23 @@ The full UESP XML dump is not stored in Git. Configure its location locally in c
 
 The committed synthetic fixture is used by automated tests and does not require the full dump.
 
+## Quick start
+
+Install dependencies and run the automated tests:
+
+```bash
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+Run the current five-page UESP demonstration:
+
+```bash
+python -m bottom_up.run_demo
+```
+
+See [Testing and running the project](docs/TESTING_AND_DEMO.md) for the full test and demonstration guide.
+
 ## Project status
 
 The shared foundations are being completed before the two AI prototypes are developed. The next major milestone is to build and evaluate the first simple AI behaviour, rather than expanding the data pipeline indefinitely.
