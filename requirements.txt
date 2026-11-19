@@ -1,0 +1,5 @@
+# External Python dependencies for the Tamriel Intelligence System.
+# Install with: python -m pip install -r requirements.txt
+
+lxml
+mwparserfromhell
