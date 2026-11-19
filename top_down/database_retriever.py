@@ -113,7 +113,7 @@ def search_lore(term, limit=8):
                 (f"%{term}%", f"%{term}%", f"%{term}%", limit),
             ).fetchall()]
             for page in pages:
-                text = re.sub(r"\\s+", " ", page.get("page_text") or "")
+                text = re.sub(r"\s+", " ", page.get("page_text") or "")
                 match = re.search(re.escape(term), text, re.IGNORECASE)
                 page["snippet"] = text[max(0, match.start()-180):match.end()+260].strip() if match else ""
                 page.pop("page_text", None)
