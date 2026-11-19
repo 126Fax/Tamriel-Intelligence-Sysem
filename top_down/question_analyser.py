@@ -18,12 +18,22 @@ def _clean(value):
 
 def identify_intent(question):
     q = normalise_question(question)
+    plain = q.rstrip("?!.").strip()
+    if plain in {
+        "what do you know", "tell me what you know", "show me what you know",
+        "tell me everything you know", "knowledge overview",
+    }:
+        return "overview"
+    if plain in {
+        "random fact", "tell me a random fact", "give me a random fact",
+        "surprise me with a fact", "surprise me",
+    }:
+        return "random_fact"
     if re.match(r"^how many\b", q):
         return "count"
-    if re.match(r"^(?:what|who|where|when|which|tell me about|describe)\b", q):
+    if re.match(r"^(?:what|who|where|when|which|tell me about|describe|explain)\b", q):
         return "lookup"
     return "search"
-
 
 def identify_relationship(question):
     q = normalise_question(question)
