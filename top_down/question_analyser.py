@@ -9,18 +9,18 @@ import re
 def normalise_question(question):
     if not isinstance(question, str) or not question.strip():
         raise ValueError("Question cannot be empty.")
-    return re.sub(r"\\s+", " ", question.strip()).casefold()
+    return re.sub(r"\s+", " ", question.strip()).casefold()
 
 
 def _clean(value):
-    return re.sub(r"^[\\s,;:]+|[?!.\\s,;:]+$", "", value).strip()
+    return re.sub(r"^[\s,;:]+|[?!.\s,;:]+$", "", value).strip()
 
 
 def identify_intent(question):
     q = normalise_question(question)
-    if re.match(r"^how many\\b", q):
+    if re.match(r"^how many\b", q):
         return "count"
-    if re.match(r"^(?:what|who|where|when|which|tell me about|describe)\\b", q):
+    if re.match(r"^(?:what|who|where|when|which|tell me about|describe)\b", q):
         return "lookup"
     return "search"
 
@@ -28,13 +28,13 @@ def identify_intent(question):
 def identify_relationship(question):
     q = normalise_question(question)
     rules = (
-        (r"\\b(?:province|provinces)\\b", "province"),
-        (r"\\b(?:continent|continents)\\b", "continent"),
-        (r"\\b(?:farmer|farmers|occupation|occupations)\\b", "occupation"),
-        (r"\\b(?:live|lives|living)\\b", "lives in"),
-        (r"\\b(?:rule|rules|ruled by)\\b", "rules"),
-        (r"\\b(?:capital|capitals)\\b", "capital"),
-        (r"\\b(?:located|location)\\b", "located in"),
+        (r"\b(?:province|provinces)\b", "province"),
+        (r"\b(?:continent|continents)\b", "continent"),
+        (r"\b(?:farmer|farmers|occupation|occupations)\b", "occupation"),
+        (r"\b(?:live|lives|living)\b", "lives in"),
+        (r"\b(?:rule|rules|ruled by)\b", "rules"),
+        (r"\b(?:capital|capitals)\b", "capital"),
+        (r"\b(?:located|location)\b", "located in"),
     )
     for pattern, relationship in rules:
         if re.search(pattern, q):
