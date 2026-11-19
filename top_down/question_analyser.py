@@ -17,10 +17,14 @@ def identify_intent(question):
 
     # Import here to keep ordinary question analysis lightweight.
     try:
+        from .random_fact import is_random_fact_question
         from .knowledge_overview import is_knowledge_overview_question
     except ImportError:
+        from random_fact import is_random_fact_question
         from knowledge_overview import is_knowledge_overview_question
 
+    if is_random_fact_question(question):
+        return "random_fact"
     if is_knowledge_overview_question(question):
         return "knowledge_overview"
 
@@ -70,7 +74,14 @@ def analyse_question(question):
 
 def answer_question(question):
     """Handle supported direct-answer intents; return None if not handled."""
-    if identify_intent(question) == "knowledge_overview":
+    intent = identify_intent(question)
+    if intent == "random_fact":
+        try:
+            from .random_fact import answer_random_fact
+        except ImportError:
+            from random_fact import answer_random_fact
+        return answer_random_fact(question)
+    if intent == "knowledge_overview":
         try:
             from .knowledge_overview import answer_knowledge_overview
         except ImportError:
