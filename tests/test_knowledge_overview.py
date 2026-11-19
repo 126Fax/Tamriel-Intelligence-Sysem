@@ -62,11 +62,11 @@ class KnowledgeOverviewTests(unittest.TestCase):
 
     def test_answer_question_handles_overview_request(self):
         with patch(
-            "top_down.question_analyser.answer_question",
+            "top_down.knowledge_overview.answer_knowledge_overview",
             return_value="overview",
         ) as answer:
             self.assertEqual(answer_question("What do you know?"), "overview")
-            answer.assert_called_once()
+            answer.assert_called_once_with("What do you know?")
 
 
 if __name__ == "__main__":
