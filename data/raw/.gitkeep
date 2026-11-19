@@ -1,0 +1,2 @@
+# This directory is for locally stored raw UESP XML dumps.
+# The dump files themselves are excluded by .gitignore and should not be committed.
