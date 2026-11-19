@@ -20,11 +20,19 @@ The aim is to build understandable working examples, test them, and gradually co
 
 ## Quick start
 
-Install dependencies:
+Create and activate the project's single virtual environment, then install
+dependencies:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
+
+If `.venv` already exists, activate it rather than creating another one.
+See [Development environment](docs/DEVELOPMENT_ENVIRONMENT.md) for setup and
+safe duplicate-environment cleanup instructions.
 
 Run the full automated test suite:
 
