@@ -1,6 +1,12 @@
 import json
 from itertools import combinations
 
+from bottom_up.pattern_discovery import (
+    compare_sentences,
+    discover_shared_patterns,
+    find_specialisations,
+)
+
 stop_words = {"the", "is", "a", "of", "in", "are", "to"}
 
 def discover_word_patterns(pages):
@@ -117,12 +123,6 @@ def discover_sentence_patterns(pages):
 
     return pattern_counts
 
-# Keep discovery logic separate from the original demonstration.
-from bottom_up.pattern_discovery import (
-    compare_sentences,
-    discover_shared_patterns,
-    find_specialisations,
-)
 
 def extract_subject(sentence, ending):
     if sentence.endswith(ending):
