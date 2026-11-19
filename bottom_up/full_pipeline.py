@@ -207,10 +207,10 @@ def extract_candidate_facts(plain_text, source_page_id, source_title):
         for province in provinces:
             escaped = re.escape(province)
             province_contexts = (
-                rf"\b{escaped}\b.{{0,100}}\b(?:one of the |among the )?"
+                rf"\b{escaped}\b.{{0,500}}\b(?:one of the |among the )?"
                 rf"(?:nine )?provinces? of Tamriel\b",
-                rf"\bprovinces? of Tamriel\b.{{0,100}}\b{escaped}\b",
-                rf"\bTamriel['’]s provinces?\b.{{0,100}}\b{escaped}\b",
+                rf"\bprovinces? of Tamriel\b.{{0,500}}\b{escaped}\b",
+                rf"\bTamriel['’]s (?:nine )?provinces?\b.{{0,500}}\b{escaped}\b",
             )
             if any(re.search(pattern, sentence, re.IGNORECASE)
                    for pattern in province_contexts):
