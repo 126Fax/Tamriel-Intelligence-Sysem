@@ -169,34 +169,6 @@ def compare_all_sentences(pages):
             print("Matching words:", matching_words)
             print("Discovered pattern:", " ".join(pattern))
 
-def discover_shared_patterns(pages):
-    shared_patterns = {}
-
-    for sentence1, sentence2 in combinations(pages, 2):
-        if len(sentence1.split()) != len(sentence2.split()):
-            continue
-
-        differences, matching_words, pattern = compare_sentences(sentence1, sentence2)
-
-        pattern_key = " ".join(pattern)
-
-        if pattern_key not in shared_patterns:
-            shared_patterns[pattern_key] = {
-                "words": [],
-                "sentences": [],
-                "meaning": None
-            }
-
-        for difference in differences:
-            for word in difference:
-                if word not in shared_patterns[pattern_key]["words"]:
-                    shared_patterns[pattern_key]["words"].append(word)
-
-        for sentence in (sentence1, sentence2):
-            if sentence not in shared_patterns[pattern_key]["sentences"]:
-                shared_patterns[pattern_key]["sentences"].append(sentence)
-
-    return shared_patterns
 
 def assign_pattern_meanings(shared_patterns):
     for pattern, details in shared_patterns.items():
