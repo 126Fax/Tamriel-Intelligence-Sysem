@@ -32,7 +32,7 @@ RELATIONSHIP_EVIDENCE_PATTERNS = {
 FRAGMENT_STARTS = {
     "and", "but", "or", "because", "although", "after", "before",
     "while", "when", "if", "who", "which", "that", "he", "she",
-    "they", "it", "we", "i", "you", "all", "the", "a", "an",
+    "they", "it", "we", "i", "you", "all",
 }
 FRAGMENT_MARKERS = (
     " is ", " are ", " was ", " were ", " who ", " which ",
