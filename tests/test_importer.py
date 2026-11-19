@@ -87,6 +87,18 @@ class FullDumpImporterTests(unittest.TestCase):
         ):
             self.assertEqual(paths.get_xml_dump_path(), raw_dump)
 
+    def test_missing_local_override_falls_back_to_raw_folder(self):
+        raw_dir = Path(self.temp_dir.name) / "raw"
+        raw_dir.mkdir()
+        raw_dump = raw_dir / "uesp.xml.bz2"
+        raw_dump.write_bytes(b"placeholder")
+
+        with (
+            patch.object(paths, "XML_DUMP_PATH", "/home/fax/Downloads/missing.xml.bz2"),
+            patch.object(paths, "RAW_DATA_DIR", raw_dir),
+        ):
+            self.assertEqual(paths.get_xml_dump_path(), raw_dump)
+
     def test_multiple_raw_dumps_require_an_explicit_choice(self):
         raw_dir = Path(self.temp_dir.name) / "raw"
         raw_dir.mkdir()
