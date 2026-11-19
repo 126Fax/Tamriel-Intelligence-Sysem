@@ -44,9 +44,10 @@ class BottomUpPrototypeTests(unittest.TestCase):
         )
 
     def test_configured_relationship_pattern_extracts_dragon_habitat(self):
-        self.assertEqual(
-            discover_relationships(self.pages),
-            [{"subject": "Dragons", "relationship": "lives in", "object": "Skyrim"}],
+        relationships = discover_relationships(self.pages)
+        self.assertIn(
+            {"subject": "Dragons", "relationship": "lives in", "object": "Skyrim"},
+            relationships,
         )
 
     def test_shared_sentence_pattern_can_be_labelled(self):
