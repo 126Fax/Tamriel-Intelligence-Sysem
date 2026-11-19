@@ -44,7 +44,7 @@ The full-dump extractor now checks for explicit phrasings such as
 to target candidate names, but only emits a candidate when the source sentence
 contains a matching province/Tamriel context. Evidence is retained.
 
-After changing extraction rules, rerun the analysis stage for the imported
+Inspect current discovery coverage with:\n\n```bash\npython -m bottom_up.province_catalog\n```\n\nThe report separates discovered provinces, missing names and unexpected candidates.\n\nAfter changing extraction rules, rerun the analysis stage for the imported
 dump so existing pages are re-analysed:
 
 ```bash
