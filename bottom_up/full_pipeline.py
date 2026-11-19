@@ -174,13 +174,16 @@ def extract_template_parameters(wikicode, source_page_id, source_title):
 
 
 def extract_candidate_facts(plain_text, source_page_id, source_title):
-    """Extract a small set of explicit sentence relationships with evidence."""
+    """Extract explicit relations plus targeted evidence for known provinces."""
+    from bottom_up.province_catalog import load_provinces
+
     facts = []
-    # Sentence splitting is intentionally conservative; evidence is retained.
-    for sentence in re.split(r"(?<=[.!?])\s+|\n+", plain_text):
-        sentence = re.sub(r"\s+", " ", sentence).strip()
+    provinces = load_provinces()
+    for sentence in re.split(r"(?<=[.!?])\\s+|\\n+", plain_text):
+        sentence = re.sub(r"\\s+", " ", sentence).strip()
         if not sentence:
             continue
+
         for relationship, pattern, confidence in FACT_PATTERNS:
             for match in pattern.finditer(sentence):
                 subject = _clean_entity(match.group("subject"))
@@ -197,7 +200,31 @@ def extract_candidate_facts(plain_text, source_page_id, source_title):
                     "extraction_method": "explicit_sentence_pattern_v1",
                     "confidence": confidence,
                 })
-    # Preserve order while avoiding duplicate pattern hits in the same sentence.
+
+        # The reference catalogue helps the extractor look for less common
+        # phrasings, but a province candidate is emitted only when the source
+        # sentence explicitly connects that name to Tamriel's provinces.
+        for province in provinces:
+            escaped = re.escape(province)
+            province_contexts = (
+                rf"\\b{escaped}\\b.{{0,100}}\\b(?:one of the |among the )?"
+                rf"(?:nine )?provinces? of Tamriel\\b",
+                rf"\\bprovinces? of Tamriel\\b.{{0,100}}\\b{escaped}\\b",
+                rf"\\bTamriel['’]s provinces?\\b.{{0,100}}\\b{escaped}\\b",
+            )
+            if any(re.search(pattern, sentence, re.IGNORECASE)
+                   for pattern in province_contexts):
+                facts.append({
+                    "source_page_id": int(source_page_id),
+                    "source_page": source_title,
+                    "subject": province,
+                    "relationship": "province of",
+                    "object": "Tamriel",
+                    "evidence": sentence[:2000],
+                    "extraction_method": "province_reference_context_v1",
+                    "confidence": 0.92,
+                })
+
     unique = []
     seen = set()
     for fact in facts:
@@ -207,7 +234,6 @@ def extract_candidate_facts(plain_text, source_page_id, source_title):
             seen.add(key)
             unique.append(fact)
     return unique
-
 
 def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None):
     """Analyse every imported page for one dump and persist evidence in SQLite."""
