@@ -36,4 +36,4 @@ def build_knowledge_overview(facts):
         "Imported pages and extracted candidate facts are evidence sources, "
         "not automatically verified lore. Ask about a subject to inspect its sources."
     )
-    return "\\n".join(lines)
+    return "\n".join(lines)
