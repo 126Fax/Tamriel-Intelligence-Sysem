@@ -1,11 +1,13 @@
 """Reference list and audit tools for Tamriel's traditional provinces."""
 import json
+from functools import lru_cache
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROVINCES_PATH = PROJECT_ROOT / "data" / "reference" / "provinces.json"
 
 
+@lru_cache(maxsize=4)
 def load_provinces(path=PROVINCES_PATH):
     with Path(path).open("r", encoding="utf-8") as source:
         provinces = json.load(source)
