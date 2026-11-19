@@ -27,9 +27,13 @@ From the project root, run:
 python -m top_down.question_analyser
 ```
 
-The demonstration includes the question **"What do you know?"**. In code, call
-`answer_question("What do you know?")`; it returns the overview text for this
-intent and `None` for questions handled by other parts of the question pipeline.
+The program opens an interactive terminal prompt. Type **"What do you know?"**
+(or **"Tell me everything you know"**) and the AI prints its current knowledge
+overview. Type `exit` or `quit` to close it.
+
+In code, call `answer_question("What do you know?")`; it returns the overview
+text for this intent and `None` for questions handled by other parts of the
+question pipeline.
 
 You can also run the overview directly:
 
