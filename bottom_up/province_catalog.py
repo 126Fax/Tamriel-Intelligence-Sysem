@@ -36,3 +36,59 @@ def audit_discovered_provinces(facts):
         "unexpected_candidates": unexpected,
         "discovered_count": len(discovered),
     }
+
+
+def audit_database(dump_id=None):
+    """Audit stored province candidates from SQLite against the reference list."""
+    from src.database import database
+
+    connection = database.get_connection()
+    try:
+        tables = {
+            row["name"] for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        if "candidate_facts" not in tables:
+            return audit_discovered_provinces([])
+        query = """
+            SELECT subject, relationship, object, source_title, evidence_text,
+                   extraction_method, confidence
+            FROM candidate_facts
+            WHERE lower(relationship) IN ('province', 'province of')
+        """
+        parameters = ()
+        if dump_id is not None:
+            query += " AND dump_id = ?"
+            parameters = (dump_id,)
+        rows = connection.execute(query, parameters).fetchall()
+        facts = [
+            {
+                "subject": row["subject"],
+                "relationship": row["relationship"],
+                "object": row["object"],
+                "source_page": row["source_title"],
+                "evidence": row["evidence_text"],
+                "extraction_method": row["extraction_method"],
+                "confidence": row["confidence"],
+            }
+            for row in rows
+        ]
+        return audit_discovered_provinces(facts)
+    finally:
+        connection.close()
+
+
+if __name__ == "__main__":
+    report = audit_database()
+    print(f"Traditional provinces expected: {report['expected_count']}")
+    print(f"Distinct provinces with extracted evidence: {report['discovered_count']}")
+    print("\nDISCOVERED")
+    for name, evidence in report["discovered"].items():
+        print(f"- {name}: {len(evidence)} evidence record(s)")
+    print("\nMISSING")
+    for name in report["missing"]:
+        print(f"- {name}")
+    print("\nUNEXPECTED CANDIDATES")
+    for fact in report["unexpected_candidates"]:
+        print(f"- {fact['subject']} -> {fact['object']} ({fact.get('source_page', 'unknown source')})")
