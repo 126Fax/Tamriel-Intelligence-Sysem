@@ -16,7 +16,10 @@ def identify_intent(question):
     question = normalise_question(question)
 
     # Import here to keep ordinary question analysis lightweight.
-    from top_down.knowledge_overview import is_knowledge_overview_question
+    try:
+        from .knowledge_overview import is_knowledge_overview_question
+    except ImportError:
+        from knowledge_overview import is_knowledge_overview_question
 
     if is_knowledge_overview_question(question):
         return "knowledge_overview"
@@ -68,7 +71,10 @@ def analyse_question(question):
 def answer_question(question):
     """Handle supported direct-answer intents; return None if not handled."""
     if identify_intent(question) == "knowledge_overview":
-        from top_down.knowledge_overview import answer_knowledge_overview
+        try:
+            from .knowledge_overview import answer_knowledge_overview
+        except ImportError:
+            from knowledge_overview import answer_knowledge_overview
         return answer_knowledge_overview(question)
     return None
 
