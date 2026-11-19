@@ -142,38 +142,88 @@ def discover_shared_patterns(
 
 
 def find_specialisations(shared_patterns: dict[str, dict]) -> list[dict]:
-    """Find patterns that fix one or more slots in a more general pattern."""
+    """Find narrower patterns, including variables spanning multiple words.
+
+    A variable in the general pattern can match one or more tokens in a
+    specialised pattern. For example, a general final slot can specialise to
+    either "Tamriel" or the two-word phrase "the Empire".
+    """
     specialisations = []
     patterns = list(shared_patterns)
 
-    def is_more_specific(candidate, base):
-        newly_fixed = False
-        for base_token, candidate_token in zip(base, candidate):
-            if base_token == VARIABLE:
-                if candidate_token != VARIABLE:
-                    newly_fixed = True
-            elif base_token.casefold() != candidate_token.casefold():
+    def is_more_specific(specific_tokens, general_tokens):
+        # Dynamic programming over both token sequences. A general variable
+        # consumes one or more specific tokens; fixed general tokens must
+        # remain fixed and identical.
+        memo = {}
+
+        def match(general_index, specific_index, tightened):
+            state = (general_index, specific_index, tightened)
+            if state in memo:
+                return memo[state]
+
+            if general_index == len(general_tokens):
+                result = specific_index == len(specific_tokens) and tightened
+                memo[state] = result
+                return result
+
+            general_token = general_tokens[general_index]
+            if general_token == VARIABLE:
+                # Try every non-empty span for this general variable.
+                for end in range(specific_index + 1, len(specific_tokens) + 1):
+                    span = specific_tokens[specific_index:end]
+                    span_is_fixed = all(token != VARIABLE for token in span)
+                    if match(
+                        general_index + 1,
+                        end,
+                        tightened or span_is_fixed,
+                    ):
+                        memo[state] = True
+                        return True
+                memo[state] = False
                 return False
-        return newly_fixed
+
+            if specific_index >= len(specific_tokens):
+                memo[state] = False
+                return False
+
+            specific_token = specific_tokens[specific_index]
+            result = (
+                specific_token != VARIABLE
+                and general_token.casefold() == specific_token.casefold()
+                and match(general_index + 1, specific_index + 1, tightened)
+            )
+            memo[state] = result
+            return result
+
+        return match(0, 0, False)
 
     for first, second in combinations(patterns, 2):
-        first_tokens, second_tokens = first.split(), second.split()
-        if len(first_tokens) != len(second_tokens):
-            continue
+        first_tokens = first.split()
+        second_tokens = second.split()
+
         if is_more_specific(second_tokens, first_tokens):
             general, specific = first, second
         elif is_more_specific(first_tokens, second_tokens):
             general, specific = second, first
         else:
             continue
-        specialisations.append({
-            "general_pattern": general,
-            "specialised_pattern": specific,
-            "specialized_pattern": specific,
-            "general": general,
-            "specialised": specific,
-            "specialized": specific,
-            "general_support": shared_patterns[general].get("support", len(shared_patterns[general].get("sentences", []))),
-            "specialised_support": shared_patterns[specific].get("support", len(shared_patterns[specific].get("sentences", []))),
-        })
+
+        specialisations.append(
+            {
+                "general_pattern": general,
+                "specialised_pattern": specific,
+                "specialized_pattern": specific,
+                "general": general,
+                "specialised": specific,
+                "specialized": specific,
+                "general_support": shared_patterns[general].get(
+                    "support", len(shared_patterns[general].get("sentences", []))
+                ),
+                "specialised_support": shared_patterns[specific].get(
+                    "support", len(shared_patterns[specific].get("sentences", []))
+                ),
+            }
+        )
+
     return specialisations
