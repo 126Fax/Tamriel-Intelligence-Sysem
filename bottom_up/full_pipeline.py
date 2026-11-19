@@ -112,7 +112,9 @@ def _clean_entity(value):
     """Remove wiki leftovers and surrounding punctuation from an entity."""
     value = re.sub(r"\[\[([^]|]+)(?:\|([^]]+))?\]\]", lambda m: m.group(2) or m.group(1), value)
     value = re.sub(r"\s+", " ", value)
-    return value.strip(" \t\r\n.,:;!?()[]{}'\"")
+    value = value.strip(" \t\r\n.,:;!?()[]{}'\"")
+    value = re.sub(r"^(?:the|a|an)\s+", "", value, flags=re.IGNORECASE)
+    return value
 
 
 def extract_candidate_facts(plain_text, source_page_id, source_title):
