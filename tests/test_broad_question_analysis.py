@@ -1,6 +1,7 @@
 import unittest
 
 from top_down.question_analyser import analyse_question, identify_intent
+from top_down.database_retriever import count_entities
 
 
 class BroadQuestionAnalysisTests(unittest.TestCase):
@@ -22,6 +23,11 @@ class BroadQuestionAnalysisTests(unittest.TestCase):
     def test_who_is_question_extracts_person_or_character(self):
         result = analyse_question("Who is Vivec?")
         self.assertEqual(result["subject_hint"], "vivec")
+
+    def test_province_count_uses_nine_name_reference_catalogue(self):
+        result = count_entities("provinces")
+        self.assertEqual(result["count"], 9)
+        self.assertEqual(result["basis"], "curated_reference_catalog")
 
     def test_unknown_question_is_sent_to_search_not_crashed(self):
         self.assertEqual(identify_intent("Explain the Dragon Break"), "search")
