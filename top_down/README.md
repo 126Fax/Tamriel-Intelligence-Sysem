@@ -11,6 +11,10 @@ from the project's stored knowledge sources.
 - Normalises natural-language questions.
 - Recognises basic question intents and relationships.
 - Recognises requests such as **"What do you know?"** and **"Tell me everything you know"**.
+- Responds to **"Tell me a random fact"** using a randomly selected structured fact
+  from the knowledge base, rather than inventing lore.
+- Avoids repeating a selected fact until the current in-memory random cycle is
+  exhausted; the cycle resets when the program restarts.
 - Reports every structured subject–relationship–object fact currently in
   `knowledge_base.json`.
 - Reports the number of imported wiki pages, page counts by namespace, and
