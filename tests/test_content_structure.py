@@ -32,7 +32,7 @@ class ContentStructureTests(unittest.TestCase):
             "{{Infobox|name=Skyrim|date={{Year|4E 201}}}} "
             "[[Skyrim|the north]] [[Empire]] "
             "[https://example.com external] "
-            "\\n== History ==\\n<ref>Source</ref>"
+            chr(10) + "== History ==" + chr(10) + "<ref>Source</ref>"
         )
         result = analyse_content_structure(text)
 
