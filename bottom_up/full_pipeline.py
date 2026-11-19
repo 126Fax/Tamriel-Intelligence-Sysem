@@ -148,7 +148,7 @@ def extract_template_parameters(wikicode, source_page_id, source_title):
     """
     parameters = []
     for template_index, template in enumerate(wikicode.filter_templates()):
-        template_name = re.sub(r"\\s+", " ", str(template.name)).strip()
+        template_name = re.sub(r"\s+", " ", str(template.name)).strip()
         template_evidence = str(template)
         for parameter_index, parameter in enumerate(template.params):
             raw_value = str(parameter.value).strip()
