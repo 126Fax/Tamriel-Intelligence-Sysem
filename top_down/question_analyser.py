@@ -80,20 +80,27 @@ def answer_question(question):
 
 
 if __name__ == "__main__":
-    questions = [
-        "Which provinces belong to the Empire?",
-        "Where do dragons live?",
-        "WHO RULES SKYRIM?",
-        "What do you know?",
-    ]
+    print("Tamriel Intelligence System — Top-down AI")
+    print('Ask "What do you know?" to see its current knowledge inventory.')
+    print("Type 'exit' or 'quit' to stop.\\n")
 
-    for question in questions:
-        print("\n===== QUESTION ANALYSIS =====")
-        result = analyse_question(question)
-        for key, value in result.items():
-            print(f"{key}: {value}")
+    while True:
+        try:
+            question = input("You: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\\nGoodbye.")
+            break
+
+        if question.casefold() in {"exit", "quit"}:
+            print("Goodbye.")
+            break
+        if not question:
+            continue
 
         answer = answer_question(question)
         if answer is not None:
-            print("\n===== ANSWER =====")
-            print(answer)
+            print(f"\\nAI: {answer}\\n")
+        else:
+            result = analyse_question(question)
+            print(f"AI: I recognised the intent as '{result['intent']}', ")
+            print("but this question type is not connected to a response handler yet.\\n")
