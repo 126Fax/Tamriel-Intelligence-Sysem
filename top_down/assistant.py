@@ -4,6 +4,8 @@ import sqlite3
 from top_down.answer_generator import generate_answer
 from top_down.database_retriever import count_entities, search_lore
 from top_down.knowledge_retriever import load_knowledge_base, retrieve_facts
+from top_down.knowledge_overview import build_knowledge_overview
+from top_down.random_fact import answer_random_fact
 from top_down.question_analyser import analyse_question
 
 
@@ -75,6 +77,27 @@ def _answer_lookup(term, facts, analysis):
 def answer_question(question, knowledge_base_path=None):
     """Analyse, retrieve and answer a question from structured facts and SQLite."""
     analysis = analyse_question(question)
+
+    if analysis["intent"] in {"overview", "random_fact"}:
+        facts = (
+            load_knowledge_base(knowledge_base_path)
+            if knowledge_base_path is not None
+            else load_knowledge_base()
+        )
+        if analysis["intent"] == "overview":
+            try:
+                answer = build_knowledge_overview(facts)
+            except sqlite3.Error:
+                answer = "I can list my structured facts, but the imported page database could not be read.\n" + "\n".join(
+                    f"- {fact['subject']} — {fact['relationship']} — {fact['object']}"
+                    for fact in facts
+                )
+        else:
+            answer = answer_random_fact(facts)
+        return {
+            "question": question, "answer": answer, "analysis": analysis,
+            "facts": facts, "knowledge_base_records": len(facts),
+        }
 
     if analysis["intent"] == "count":
         answer = _answer_count(analysis.get("count_target"))
