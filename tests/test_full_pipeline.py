@@ -91,7 +91,7 @@ class FullPipelineTests(unittest.TestCase):
         try:
             self.assertEqual(connection.execute(
                 "SELECT COUNT(*) FROM page_analysis"
-            ).fetchone()[0], 2)
+            ).fetchone()[0], 3)
         finally:
             connection.close()
 
