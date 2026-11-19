@@ -30,7 +30,8 @@ python -m top_down.chat
 
 Example questions:
 
-- `What do you know?` (full stored knowledge overview)\n- `Tell me a random fact` (no-repeat cycle through stored facts)\n- `What do you know about Skyrim?`
+- `What do you know?` (full stored knowledge overview)
+- `Tell me a random fact` (no-repeat cycle through stored facts)\n- `What do you know about Skyrim?`
 - `Who is Vivec?`
 - `Where do dragons live?`
 - `How many farmers are there?`
