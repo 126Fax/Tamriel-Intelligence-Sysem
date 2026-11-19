@@ -13,14 +13,8 @@ DATABASE_DIR = DATA_DIR / "database"
 PROCESSED_DIR = DATA_DIR / "processed"
 
 
-def get_xml_dump_path() -> Path:
-    """Use config/local.py when set; otherwise find a dump in data/raw."""
-    if XML_DUMP_PATH is not None:
-        dump_path = Path(XML_DUMP_PATH).expanduser()
-        if not dump_path.is_file():
-            raise FileNotFoundError(f"XML dump not found: {dump_path}")
-        return dump_path
-
+def _find_raw_dump() -> Path:
+    """Find the only dump in data/raw, rejecting ambiguous selections."""
     if not RAW_DATA_DIR.is_dir():
         raise FileNotFoundError(
             f"Raw data folder not found: {RAW_DATA_DIR}. "
@@ -39,5 +33,19 @@ def get_xml_dump_path() -> Path:
             "More than one .xml.bz2 dump found in data/raw. "
             f"Set XML_DUMP_PATH in config/local.py to choose one: {names}"
         )
-
     return candidates[0]
+
+
+def get_xml_dump_path() -> Path:
+    """Use a valid local override; otherwise use the sole dump in data/raw.
+
+    A stale machine-specific config/local.py path is ignored when a single
+    raw dump is available. This allows the project to move between machines
+    and GitHub Codespaces without editing local configuration.
+    """
+    if XML_DUMP_PATH is not None:
+        dump_path = Path(XML_DUMP_PATH).expanduser()
+        if dump_path.is_file():
+            return dump_path
+
+    return _find_raw_dump()
