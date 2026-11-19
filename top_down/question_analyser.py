@@ -70,7 +70,8 @@ def analyse_question(question):
         return result
 
     patterns = (
-        r"^(?:what do you know about|what can you tell me about|tell me about|describe) (.+?)[?!.]*$",
+        r"^(?:what do you know about|what can you tell me about|tell me about|describe|explain) (.+?)[?!.]*$",
+        r"^(?:what|which) are (?:the )?(.+?)[?!.]*$",
         r"^(?:what|who|where|when) is (?:the )?(.+?)[?!.]*$",
         r"^who was (?:the )?(.+?)[?!.]*$",
         r"^where is (?:the )?(.+?)[?!.]*$",
