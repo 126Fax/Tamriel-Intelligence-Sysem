@@ -179,8 +179,8 @@ def extract_candidate_facts(plain_text, source_page_id, source_title):
 
     facts = []
     provinces = load_provinces()
-    for sentence in re.split(r"(?<=[.!?])\\s+|\\n+", plain_text):
-        sentence = re.sub(r"\\s+", " ", sentence).strip()
+    for sentence in re.split(r"(?<=[.!?])\s+|\n+", plain_text):
+        sentence = re.sub(r"\s+", " ", sentence).strip()
         if not sentence:
             continue
 
@@ -207,10 +207,10 @@ def extract_candidate_facts(plain_text, source_page_id, source_title):
         for province in provinces:
             escaped = re.escape(province)
             province_contexts = (
-                rf"\\b{escaped}\\b.{{0,100}}\\b(?:one of the |among the )?"
-                rf"(?:nine )?provinces? of Tamriel\\b",
-                rf"\\bprovinces? of Tamriel\\b.{{0,100}}\\b{escaped}\\b",
-                rf"\\bTamriel['’]s provinces?\\b.{{0,100}}\\b{escaped}\\b",
+                rf"\b{escaped}\b.{{0,100}}\b(?:one of the |among the )?"
+                rf"(?:nine )?provinces? of Tamriel\b",
+                rf"\bprovinces? of Tamriel\b.{{0,100}}\b{escaped}\b",
+                rf"\bTamriel['’]s provinces?\b.{{0,100}}\b{escaped}\b",
             )
             if any(re.search(pattern, sentence, re.IGNORECASE)
                    for pattern in province_contexts):
