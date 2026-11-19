@@ -31,7 +31,7 @@ class BottomUpPrototypeTests(unittest.TestCase):
 
     def test_phrase_discovery_counts_adjacent_words(self):
         phrases = discover_phrases(self.pages)
-        self.assertEqual(phrases["is a"], 2)
+        self.assertEqual(phrases["province of"], 2)
 
     def test_province_relationships_extract_subjects(self):
         relationships = discover_province_relationships(self.pages)
