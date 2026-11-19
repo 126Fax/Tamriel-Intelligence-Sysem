@@ -48,7 +48,7 @@ def _answer_lookup(term, facts, analysis):
                 evidence = fact.get("evidence")
                 if evidence:
                     lines.append(f"  Evidence: {evidence}")
-            return "\\n".join(lines), related
+            return "\n".join(lines), related
 
         try:
             result = search_lore(term)
@@ -65,7 +65,7 @@ def _answer_lookup(term, facts, analysis):
                 lines.append(f"- Page: {page['title']} ({page['namespace_name']}).")
                 if page.get("snippet"):
                     lines.append(f"  Extract: {page['snippet']}")
-            return "\\n".join(lines), result["facts"]
+            return "\n".join(lines), result["facts"]
     return (
         "I could not identify a specific subject to look up. Try asking about a named person, place, faction or creature.",
         [],
