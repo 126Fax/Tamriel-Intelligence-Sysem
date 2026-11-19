@@ -45,9 +45,23 @@ python -m top_down.chat
 
 The top-down prototype currently uses six manually supplied sample facts in `knowledge_base.json`. It can answer the example questions supported by those facts, but it does not yet query all 477,491 pages or automatically use bottom-up discoveries.
 
-## Full UESP data
+## Full UESP data and bottom-up pipeline
 
-The full UESP XML dump is not stored in Git. Keep it locally under `data/raw/` and use the repository's configuration/import tools to process it. The committed synthetic fixtures are used for automated tests and do not require the full dump.
+The full UESP XML dump is not stored in Git. Keep it locally under `data/raw/`. The full pipeline streams the dump into SQLite, analyses the imported pages, stores extracted links and evidence-backed candidate relationships, and rebuilds `knowledge_base.json` for the top-down prototype.
+
+Run the full workflow:
+
+```bash
+python -m bottom_up.run_full_pipeline
+```
+
+If the dump is already imported and you only want to rerun bottom-up analysis:
+
+```bash
+python -m bottom_up.run_full_pipeline --skip-import
+```
+
+See [docs/FULL_DUMP_PIPELINE.md](docs/FULL_DUMP_PIPELINE.md) for the database tables, batch settings and current extraction limits. The committed synthetic fixtures are used for automated tests and do not require the full dump.
 
 ## Architecture and next steps
 
