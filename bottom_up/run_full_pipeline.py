@@ -67,6 +67,7 @@ def main():
     print(f"Pages analysed: {analysis['pages_analysed']:,}")
     print(f"Wiki links extracted: {analysis['wiki_links_extracted']:,}")
     print(f"Candidate fact matches: {analysis['candidate_facts_extracted']:,}")
+    print(f"Template parameters extracted: {analysis['template_parameters_extracted']:,}")
     print(f"Knowledge-base facts: {knowledge['knowledge_facts']:,}")
     print(f"Knowledge base: {knowledge['knowledge_base_path']}")
     print(f"Total elapsed: {perf_counter() - started:.1f} seconds")
