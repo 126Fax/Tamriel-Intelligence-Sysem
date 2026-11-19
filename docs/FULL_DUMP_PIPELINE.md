@@ -35,7 +35,10 @@ Use `--batch-size` and `--analysis-batch-size` to tune them.
 | `pages` | Full imported wiki page text and metadata |
 | `page_analysis` | Template, link, heading and tag counts |
 | `page_links` | Source page and each extracted wiki link |
+| `page_template_parameters` | Template name, parameter name/value, raw value and source template evidence |
 | `candidate_facts` | Explicit relationship candidates with source evidence |
+
+Template parameters are stored as structured observations, not automatically treated as facts. Both the parsed value and raw wikitext/template evidence are retained for later schema discovery.
 
 The generated `knowledge_base.json` contains the subject, relationship, object,
 source page ID/title, evidence sentence, extraction method and confidence.
@@ -44,7 +47,7 @@ source page ID/title, evidence sentence, extraction method and confidence.
 
 This is the first full-dump analysis engine, not general semantic understanding.
 It extracts wiki structure and a deliberately small set of explicit sentence
-patterns (province, lives in, located in). A wiki link is recorded as a link,
+patterns (province, lives in, located in). Template parameters are extracted separately as structured observations; they are not yet converted into semantic relationships because parameter meanings depend on each template's schema. A wiki link is recorded as a link,
 not assumed to mean a relationship. Candidate facts are evidence-backed
 extractions, not independently verified lore. The top-down system can retrieve
 the generated triples, but its question analyser still supports only a limited
