@@ -20,7 +20,7 @@ class SampleWorkflowTests(unittest.TestCase):
                 pages = run_sample_analysis.load_sample_pages()
 
             self.assertEqual(len(pages), 5)
-            self.assertTrue(any(page["title"] == "Skyrim" for page in pages))
+            self.assertTrue(any(page["title"] == "Morrowind" for page in pages))
 
             results = run_sample_analysis.analyse_sample_pages(pages)
             self.assertEqual(len(results), 5)
