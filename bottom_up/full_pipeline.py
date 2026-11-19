@@ -87,6 +87,9 @@ def ensure_analysis_schema(connection):
 
         CREATE INDEX IF NOT EXISTS idx_template_parameters_lookup
             ON page_template_parameters(template_name, parameter_name);
+
+        CREATE INDEX IF NOT EXISTS idx_template_parameter_name_value
+            ON page_template_parameters(parameter_name COLLATE NOCASE, parameter_value COLLATE NOCASE);
         CREATE INDEX IF NOT EXISTS idx_template_parameters_source
             ON page_template_parameters(dump_id, source_page_id);
 
