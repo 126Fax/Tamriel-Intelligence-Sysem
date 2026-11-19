@@ -1,86 +1,61 @@
-import json
-from pathlib import Path
+"""Understand simple natural-language questions about Elder Scrolls lore.
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+This module deliberately uses transparent rules rather than a trained language
+model. It converts a question into a small structure that the retriever can use.
+"""
 
-KNOWLEDGE_BASE_PATH = PROJECT_ROOT / "knowledge_base.json"
+import re
+
 
 def normalise_question(question):
-    """Clean up a question before analysing it."""
-
-    if not question or not question.strip():
+    """Return a trimmed, lower-case question or raise ValueError."""
+    if not isinstance(question, str) or not question.strip():
         raise ValueError("Question cannot be empty.")
 
     return question.strip().casefold()
 
+
 def identify_intent(question):
-    """Identify what type of information a question requests."""
+    """Classify the broad shape of a question."""
+    normalised = normalise_question(question)
 
-    question = normalise_question(question)
-
-    if question.startswith(("which ", "what ")):
+    if normalised.startswith(("which ", "what ")):
         return "find_subjects"
 
-    if question.startswith(("where ", "who ", "when ")):
+    if normalised.startswith(("where ", "who ", "when ")):
         return "find_object"
 
-    return "unknown"
+    return "find_related_facts"
 
-def extract_search_term(question):
-    """Extract the main subject or topic from a question."""
-
-    question = normalise_question(question)
-
-    question_starters = [
-        "which ",
-        "what ",
-        "where ",
-        "who ",
-        "when "
-    ]
-
-    for starter in question_starters:
-        if question.startswith(starter):
-            question = question[len(starter):]
-            break
-
-    return question.rstrip("? .")
 
 def identify_relationship(question):
-    """Identify the relationship requested in a question."""
+    """Map common question wording to a relationship used by the knowledge base."""
+    normalised = normalise_question(question)
 
-    question = normalise_question(question)
-
-    if "belong to" in question:
+    if re.search(r"\b(province|provinces|belong to|part of)\b", normalised):
         return "province"
 
-    if "live" in question or "lives" in question:
+    if re.search(r"\b(live|lives|living|reside|resides)\b", normalised):
         return "lives in"
 
     return None
 
+
+def extract_search_term(question):
+    """Return a simple readable search phrase for diagnostics and compatibility."""
+    normalised = normalise_question(question)
+    normalised = re.sub(r"^(which|what|where|who|when|tell me about)\s+", "", normalised)
+    return normalised.rstrip("? .")
+
+
 def analyse_question(question):
-    """Analyse a question and return its recognised information."""
+    """Analyse a question and return the information needed for retrieval."""
+    normalised = normalise_question(question)
 
     return {
         "original_question": question,
-        "normalised_question": normalise_question(question),
-        "intent": identify_intent(question),
-        "search_term": extract_search_term(question),
-        "relationship": identify_relationship(question)
+        "normalised_question": normalised,
+        "intent": identify_intent(normalised),
+        "search_term": extract_search_term(normalised),
+        "relationship": identify_relationship(normalised),
     }
-
-if __name__ == "__main__":
-    questions = [
-        "Which provinces belong to the Empire?",
-        "Where do dragons live?",
-        "WHO RULES SKYRIM?"
-    ]
-
-    for question in questions:
-        print("\n===== QUESTION ANALYSIS =====")
-
-        result = analyse_question(question)
-
-        for key, value in result.items():
-            print(f"{key}: {value}")

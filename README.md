@@ -2,47 +2,55 @@
 
 ## Project overview
 
-The Tamriel Intelligence System is a Python AI project that explores two approaches to working with Elder Scrolls lore from the UESP Wiki:
+The Tamriel Intelligence System is a Python project for answering questions
+about the Elder Scrolls universe using information originating from the UESP
+Wiki.
 
-- **Bottom-up AI:** examines wiki content, identifies recurring features and patterns, and uses those patterns to organise or classify information.
-- **Top-down AI:** takes a user's question, interprets what information is needed, retrieves relevant lore, and produces an answer using the stored knowledge.
+The current development focus is the **Top-Down AI**: a user asks a question,
+the system analyses what is being requested, retrieves relevant facts from a
+knowledge base and produces a readable response.
 
-The aim is to build small, understandable working examples of both approaches and evaluate how they differ. The project is not intended to recreate the entire UESP website or build a production-scale search engine.
+## Current AI application
 
-## Development approach
+The working Top-Down AI is a rule-based question-answering application with
+three main stages:
 
-The project is being developed in three broad stages:
+1. Question analysis.
+2. Knowledge-base retrieval.
+3. Answer generation.
 
-1. **Shared foundations:** reliable XML reading, a small test dataset, storage of page content, and reusable retrieval functions.
-2. **AI prototypes:** a simple bottom-up pattern-discovery prototype and a simple top-down question-and-retrieval prototype.
-3. **Evaluation:** test both approaches against a consistent set of lore questions or analysis tasks, record their limitations, and compare their results.
+To start it from the repository root:
 
-Data preparation is deliberately kept proportionate to the AI objectives. The synthetic MediaWiki fixture allows development and testing without repeatedly processing the full UESP dump.
+```bash
+python -m top_down
+```
 
-## Current foundations
+To run its tests:
 
-- Reads compressed MediaWiki XML exports.
-- Reads namespace information from the export.
-- Extracts the latest revision of each page.
-- Analyses basic dataset and page-length statistics.
-- Imports page metadata and full page text into SQLite in batches.
-- Provides basic keyword retrieval from stored page titles and text.
-- Includes a synthetic XML fixture and integration tests.
+```bash
+python -m unittest discover -s tests -v
+```
 
-## Technologies
+The current knowledge base is a small demonstration dataset in
+`knowledge_base.json`. It is not yet a complete representation of UESP lore.
 
-- Python
-- SQLite
-- XML processing with lxml
-- Wiki markup parsing with mwparserfromhell
-- Git and GitHub
+## Project structure
 
-## Data setup
+- `top_down/` — the question-answering application.
+- `knowledge_base.json` — the current structured demonstration facts.
+- `docs/AI_SYSTEM.md` — documentation for the AI design and data flow.
+- `src/ingestion/` — code for reading the source XML dump.
+- `src/database/` — SQLite storage and retrieval foundations.
+- `src/analysis/` — utilities for inspecting page and wiki-markup structure.
+- `tests/` — automated tests.
 
-The full UESP XML dump is not stored in Git. Configure its location locally in config/local.py using XML_DUMP_PATH. The example configuration should contain a path on the machine running the project.
+## Source data
 
-The committed synthetic fixture is used by automated tests and does not require the full dump.
+The full UESP XML dump is not stored in Git. Its local path is configured in
+`config/local.py` using `XML_DUMP_PATH`. The repository's ingestion code
+extracts page information and stores it in SQLite. That data-preparation
+pipeline supports the project but is separate from the current Top-Down AI
+question-answering stages.
 
-## Project status
-
-The shared foundations are being completed before the two AI prototypes are developed. The next major milestone is to build and evaluate the first simple AI behaviour, rather than expanding the data pipeline indefinitely.
+For the AI architecture, setup, operation, tests and limitations, see
+[AI system documentation](docs/AI_SYSTEM.md).
