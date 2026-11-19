@@ -67,6 +67,29 @@ def ensure_analysis_schema(connection):
                 REFERENCES pages(dump_id, page_id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS page_template_parameters (
+            parameter_id INTEGER PRIMARY KEY,
+            dump_id INTEGER NOT NULL,
+            source_page_id INTEGER NOT NULL,
+            source_title TEXT NOT NULL,
+            template_index INTEGER NOT NULL,
+            template_name TEXT NOT NULL,
+            parameter_index INTEGER NOT NULL,
+            parameter_name TEXT NOT NULL,
+            is_named INTEGER NOT NULL,
+            parameter_value TEXT NOT NULL,
+            raw_value TEXT NOT NULL,
+            evidence_text TEXT NOT NULL,
+            extraction_method TEXT NOT NULL,
+            FOREIGN KEY (dump_id, source_page_id)
+                REFERENCES pages(dump_id, page_id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_template_parameters_lookup
+            ON page_template_parameters(template_name, parameter_name);
+        CREATE INDEX IF NOT EXISTS idx_template_parameters_source
+            ON page_template_parameters(dump_id, source_page_id);
+
         CREATE TABLE IF NOT EXISTS page_links (
             link_id INTEGER PRIMARY KEY,
             dump_id INTEGER NOT NULL,
@@ -117,6 +140,39 @@ def _clean_entity(value):
     return value
 
 
+def extract_template_parameters(wikicode, source_page_id, source_title):
+    """Extract template fields as structured observations, not semantic facts.
+
+    Raw values and the complete source template are retained so later discovery
+    can interpret each template's schema without losing the original evidence.
+    """
+    parameters = []
+    for template_index, template in enumerate(wikicode.filter_templates()):
+        template_name = re.sub(r"\\s+", " ", str(template.name)).strip()
+        template_evidence = str(template)
+        for parameter_index, parameter in enumerate(template.params):
+            raw_value = str(parameter.value).strip()
+            value = parameter.value.strip_code(
+                normalize=True, collapse=True
+            ).strip()
+            if not template_name or not value:
+                continue
+            parameters.append({
+                "source_page_id": int(source_page_id),
+                "source_title": source_title,
+                "template_index": template_index,
+                "template_name": template_name,
+                "parameter_index": parameter_index,
+                "parameter_name": str(parameter.name).strip(),
+                "is_named": bool(parameter.showkey),
+                "parameter_value": value,
+                "raw_value": raw_value,
+                "evidence": template_evidence[:10000],
+                "extraction_method": "template_parameter_v1",
+            })
+    return parameters
+
+
 def extract_candidate_facts(plain_text, source_page_id, source_title):
     """Extract a small set of explicit sentence relationships with evidence."""
     facts = []
@@ -159,7 +215,7 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
         raise ValueError("Batch size must be at least 1.")
 
     connection = database.get_connection()
-    processed = links_found = facts_found = 0
+    processed = links_found = facts_found = template_parameters_found = 0
     try:
         ensure_analysis_schema(connection)
         dump = connection.execute(
@@ -170,6 +226,9 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
 
         # A rerun rebuilds only derived analysis for this dump.
         connection.execute("DELETE FROM candidate_facts WHERE dump_id = ?", (dump_id,))
+        connection.execute(
+            "DELETE FROM page_template_parameters WHERE dump_id = ?", (dump_id,)
+        )
         connection.execute("DELETE FROM page_links WHERE dump_id = ?", (dump_id,))
         connection.execute("DELETE FROM page_analysis WHERE dump_id = ?", (dump_id,))
         connection.commit()
@@ -206,6 +265,29 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
                     (dump_id, page["page_id"], len(templates), len(links),
                      len(headings), len(tags)),
                 )
+                for parameter in extract_template_parameters(
+                    wikicode, page["page_id"], page["title"]
+                ):
+                    connection.execute(
+                        """
+                        INSERT INTO page_template_parameters
+                        (dump_id, source_page_id, source_title, template_index,
+                         template_name, parameter_index, parameter_name,
+                         is_named, parameter_value, raw_value, evidence_text,
+                         extraction_method)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            dump_id, parameter["source_page_id"],
+                            parameter["source_title"], parameter["template_index"],
+                            parameter["template_name"], parameter["parameter_index"],
+                            parameter["parameter_name"], int(parameter["is_named"]),
+                            parameter["parameter_value"], parameter["raw_value"],
+                            parameter["evidence"], parameter["extraction_method"],
+                        ),
+                    )
+                    template_parameters_found += 1
+
                 for link in links:
                     destination = str(link.title).strip()
                     display = (
@@ -250,6 +332,7 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
             "pages_analysed": processed,
             "wiki_links_extracted": links_found,
             "candidate_facts_extracted": facts_found,
+            "template_parameters_extracted": template_parameters_found,
         }
     finally:
         connection.close()
