@@ -32,6 +32,18 @@ class FullPipelineTests(unittest.TestCase):
                 "namespace": "0", "revision_id": "20",
                 "text": "Dragons live in [[Skyrim]].",
             },
+            {
+                "page_id": "3", "title": "Lore:Bravil", "namespace": "0",
+                "revision_id": "30",
+                "text": (
+                    "{{Lore Place Summary\n"
+                    "|continent=Tamriel\n"
+                    "|province=Cyrodiil\n"
+                    "|region=Nibenay Valley\n"
+                    "|settlement=Bravil\n"
+                    "}}"
+                ),
+            },
         ]
         database.insert_pages_batch(
             self.dump_id, self.pages, {0: ""}, batch_size=2
@@ -53,7 +65,7 @@ class FullPipelineTests(unittest.TestCase):
 
     def test_full_analysis_persists_page_structure_links_and_facts(self):
         result = analyse_dump(self.dump_id, batch_size=1)
-        self.assertEqual(result["pages_analysed"], 2)
+        self.assertEqual(result["pages_analysed"], 3)
         self.assertGreaterEqual(result["wiki_links_extracted"], 2)
         self.assertGreaterEqual(result["candidate_facts_extracted"], 2)
 
@@ -61,7 +73,7 @@ class FullPipelineTests(unittest.TestCase):
         try:
             self.assertEqual(connection.execute(
                 "SELECT COUNT(*) FROM page_analysis"
-            ).fetchone()[0], 2)
+            ).fetchone()[0], 3)
             self.assertGreaterEqual(connection.execute(
                 "SELECT COUNT(*) FROM page_links"
             ).fetchone()[0], 2)
@@ -74,7 +86,7 @@ class FullPipelineTests(unittest.TestCase):
     def test_analysis_rerun_rebuilds_without_duplicate_rows(self):
         analyse_dump(self.dump_id)
         first = analyse_dump(self.dump_id)
-        self.assertEqual(first["pages_analysed"], 2)
+        self.assertEqual(first["pages_analysed"], 3)
         connection = database.get_connection()
         try:
             self.assertEqual(connection.execute(
