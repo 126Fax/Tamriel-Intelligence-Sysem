@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut output = io::BufWriter::new(stdout.lock());
             for_each_page(BufReader::new(decoder), limit, |page| {
                 serde_json::to_writer(&mut output, &page).map_err(|error| error.to_string())?;
-                output.write_all(b"\\n").map_err(|error| error.to_string())?;
+                output.write_all(b"\n").map_err(|error| error.to_string())?;
                 Ok(())
             }).map_err(io::Error::other)?;
             output.flush()?;
