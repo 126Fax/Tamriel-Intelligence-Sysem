@@ -44,11 +44,22 @@ pub struct CandidateFact {
 /// Stream MediaWiki export pages from any buffered XML reader.
 /// Only the current page is retained in memory.
 pub fn read_pages<R: BufRead>(input: R, limit: Option<usize>) -> Result<Vec<PageRecord>, String> {
+    let mut pages = Vec::new();
+    for_each_page(input, limit, |page| { pages.push(page); Ok(()) })?;
+    Ok(pages)
+}
+
+/// Process each page as soon as it is complete, keeping memory bounded by one page.
+pub fn for_each_page<R, F>(input: R, limit: Option<usize>, mut callback: F) -> Result<(), String>
+where
+    R: BufRead,
+    F: FnMut(PageRecord) -> Result<(), String>,
+{
     let mut reader = Reader::from_reader(input);
     reader.config_mut().trim_text(false);
 
     let mut buf = Vec::new();
-    let mut pages = Vec::new();
+    let mut page_count = 0usize;
     let mut in_page = false;
     let mut in_revision = false;
     let mut page_id = String::new();
@@ -125,15 +136,16 @@ pub fn read_pages<R: BufRead>(input: R, limit: Option<usize>) -> Result<Vec<Page
                     in_revision = false;
                 } else if name.as_ref() == b"page" && in_page {
                     if let Some(text) = revision_text.take() {
-                        pages.push(PageRecord {
+                        callback(PageRecord {
                             page_id: page_id.clone(),
                             title: title.clone(),
                             namespace: namespace.clone(),
                             revision_id: revision_id.clone(),
                             text,
-                        });
-                        if limit.is_some_and(|maximum| pages.len() >= maximum) {
-                            return Ok(pages);
+                        })?;
+                        page_count += 1;
+                        if limit.is_some_and(|maximum| page_count >= maximum) {
+                            return Ok(());
                         }
                     }
                     in_page = false;
@@ -148,7 +160,28 @@ pub fn read_pages<R: BufRead>(input: R, limit: Option<usize>) -> Result<Vec<Page
         buf.clear();
     }
 
-    Ok(pages)
+    Ok(())
+}
+
+fn split_sentences(text: &str) -> Vec<&str> {
+    let mut sentences = Vec::new();
+    let mut start = 0usize;
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    for (index, (byte_pos, ch)) in chars.iter().enumerate() {
+        let next_is_space = chars.get(index + 1).map(|(_, next)| next.is_whitespace()).unwrap_or(true);
+        if *ch == '\\n' || (matches!(ch, '.' | '!' | '?') && next_is_space) {
+            let end = if *ch == '\\n' { *byte_pos } else { byte_pos + ch.len_utf8() };
+            if end > start { sentences.push(&text[start..end]); }
+            start = byte_pos + ch.len_utf8();
+            while start < text.len() {
+                let next = text[start..].chars().next().unwrap();
+                if !next.is_whitespace() { break; }
+                start += next.len_utf8();
+            }
+        }
+    }
+    if start < text.len() { sentences.push(&text[start..]); }
+    sentences
 }
 
 fn clean_entity(value: &str) -> String {
