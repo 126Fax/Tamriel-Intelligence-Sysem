@@ -29,6 +29,31 @@ pub struct PageText {
     pub text: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WikiStats {
+    pub page_id: i64,
+    pub template_count: usize,
+    pub wikilink_count: usize,
+    pub heading_count: usize,
+    pub tag_count: usize,
+}
+
+/// Lightweight regex candidate for structural counts. Nested templates and
+/// complex tag syntax are known limitations; parity must be measured.
+pub fn count_wikitext_structures(page: &PageText) -> WikiStats {
+    let templates = Regex::new(r"(?s)\{\{.*?\}\}").unwrap();
+    let links = Regex::new(r"(?s)\[\[.*?\]\]").unwrap();
+    let headings = Regex::new(r"(?m)^={1,6}[^\r\n]*?={1,6}\s*$").unwrap();
+    let tags = Regex::new(r"(?i)<[a-z][^>]*>").unwrap();
+    WikiStats {
+        page_id: page.page_id,
+        template_count: templates.find_iter(&page.text).count(),
+        wikilink_count: links.find_iter(&page.text).count(),
+        heading_count: headings.find_iter(&page.text).count(),
+        tag_count: tags.find_iter(&page.text).count(),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CandidateFact {
     pub source_page_id: i64,
