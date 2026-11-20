@@ -99,14 +99,18 @@ def main() -> int:
         except Exception as error:  # diagnostic: report incompatibility
             reconstruction_error = f"{type(error).__name__}: {error}"
 
-    expected = {
-        "page_id": "101",
-        "title": "Test & Example",
-        "namespace": "0",
-        "revision_id": "202",
-        "text": "A line with & and <markup>.\nSecond line with [[A link]] and {{template|value}}.",
+    baseline_root = etree.fromstring(SAMPLE_XML.encode("utf-8"))
+    baseline_page = baseline_root.find(f"{{{MEDIAWIKI_NS}}}page")
+    baseline_revision = baseline_page.find(f"{{{MEDIAWIKI_NS}}}revision")
+    baseline_text = baseline_revision.find(f"{{{MEDIAWIKI_NS}}}text")
+    baseline_fields = {
+        "page_id": baseline_page.findtext(f"{{{MEDIAWIKI_NS}}}id"),
+        "title": baseline_page.findtext(f"{{{MEDIAWIKI_NS}}}title"),
+        "namespace": baseline_page.findtext(f"{{{MEDIAWIKI_NS}}}ns"),
+        "revision_id": baseline_revision.findtext(f"{{{MEDIAWIKI_NS}}}id"),
+        "text": baseline_text.text if baseline_text is not None else None,
     }
-    equivalent = reconstructed_fields == expected
+    equivalent = reconstructed_fields == baseline_fields
 
     print("XML stream parser compatibility probe")
     print(f"Candidate page callbacks: {len(callback_records)}")
