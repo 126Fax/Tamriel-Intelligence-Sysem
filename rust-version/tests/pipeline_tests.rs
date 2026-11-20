@@ -69,3 +69,16 @@ fn user_and_mod_observations_are_stored_with_distinct_provenance() {
     assert_eq!(users,1);
     assert_eq!(mods,1);
 }
+
+#[test]
+fn province_reference_context_emits_evidence_backed_candidate() {
+    let provinces = vec!["Skyrim".to_string(),"Morrowind".to_string()];
+    let facts = wiki::extract_facts(
+        "Skyrim is one of the nine provinces of Tamriel.",
+        9,"Skyrim",&provinces
+    );
+    assert!(facts.iter().any(|fact| fact.subject=="Skyrim"
+        && fact.relationship=="province of"
+        && fact.object=="Tamriel"
+        && fact.evidence.contains("nine provinces of Tamriel")));
+}
