@@ -69,6 +69,7 @@ where
     let mut revision_text: Option<String> = None;
     let mut leaf: Option<String> = None;
     let mut leaf_text = String::new();
+    let mut stack: Vec<String> = Vec::new();
 
     loop {
         match reader.read_event_into(&mut buf) {
