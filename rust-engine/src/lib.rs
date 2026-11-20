@@ -211,8 +211,8 @@ fn split_sentences(text: &str) -> Vec<&str> {
     let chars: Vec<(usize, char)> = text.char_indices().collect();
     for (index, (byte_pos, ch)) in chars.iter().enumerate() {
         let next_is_space = chars.get(index + 1).map(|(_, next)| next.is_whitespace()).unwrap_or(true);
-        if *ch == '\\n' || (matches!(ch, '.' | '!' | '?') && next_is_space) {
-            let end = if *ch == '\\n' { *byte_pos } else { byte_pos + ch.len_utf8() };
+        if *ch == '\n' || (matches!(ch, '.' | '!' | '?') && next_is_space) {
+            let end = if *ch == '\n' { *byte_pos } else { byte_pos + ch.len_utf8() };
             if end > start { sentences.push(&text[start..end]); }
             start = byte_pos + ch.len_utf8();
             while start < text.len() {
