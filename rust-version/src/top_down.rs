@@ -89,7 +89,7 @@ pub fn answer_question(database_path: &Path, question: &str) -> Result<String> {
             .trim_start_matches("where ").trim();
         (Some("lives in"), if subject.is_empty() { None } else { Some(subject.to_string()) })
     } else if lowered.contains("province") && (lowered.contains("belong") || lowered.contains("province of")) {
-        (Some("province"), None)
+        (Some("province"), lowered.split("belong to").nth(1).map(|value| value.trim().trim_start_matches("the ").trim_end_matches(|ch: char| ch.is_ascii_punctuation()).to_string()).filter(|value| !value.is_empty()))
     } else {
         (None, Some(question.trim_matches(|c: char| c.is_ascii_punctuation()).to_string()))
     };
