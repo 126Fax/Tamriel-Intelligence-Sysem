@@ -79,9 +79,9 @@ fn main() -> Result<()> {
             let db_path = db.unwrap_or_else(config::default_database);
             let started = Instant::now();
             let summary = analysis::analyse_dump(&db_path,dump_id,batch_size)?;
-            println!("Pages analysed: {}\nWiki links: {}\nTemplate parameters: {}\nCandidate facts: {}\nElapsed: {:.2}s",
+            println!("Pages analysed: {}\nWiki links: {}\nTemplate parameters: {}\nCandidate facts: {}\nRace/occupation/book candidates: {}\nElapsed: {:.2}s",
                 summary.pages_analysed,summary.wiki_links_extracted,summary.template_parameters_extracted,
-                summary.candidate_facts_extracted,started.elapsed().as_secs_f64());
+                summary.candidate_facts_extracted,summary.entity_candidates_extracted,started.elapsed().as_secs_f64());
         }
         Command::BuildKb { dump_id,db,output } => {
             let db_path = db.unwrap_or_else(config::default_database);
@@ -115,9 +115,9 @@ fn main() -> Result<()> {
             println!("2/3 Running Bottom-Up analysis...");
             let started = Instant::now();
             let summary = analysis::analyse_dump(&db_path,dump_id,analysis_batch_size)?;
-            println!("  {} pages | {} links | {} template parameters | {} candidate facts | {:.2}s",
+            println!("  {} pages | {} links | {} template parameters | {} facts | {} typed candidates | {:.2}s",
                 summary.pages_analysed,summary.wiki_links_extracted,summary.template_parameters_extracted,
-                summary.candidate_facts_extracted,started.elapsed().as_secs_f64());
+                summary.candidate_facts_extracted,summary.entity_candidates_extracted,started.elapsed().as_secs_f64());
             println!("3/3 Exporting knowledge base...");
             let count = knowledge::export_knowledge_base(&db_path,dump_id,&output_path)?;
             println!("  {count:,} records -> {}",output_path.display());
