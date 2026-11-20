@@ -42,6 +42,19 @@ in chunks and reports the events and callback data it produces. It checks
 whether the API exposes enough information to reconstruct page records. This
 is a compatibility check, not a performance result.
 
+## Run the optional test
+
+After installing the optional package, run:
+
+```bash
+python -m unittest tests.test_xmlstream_compatibility -v
+```
+
+The test compares the candidate's reconstructed fields with the same sample
+parsed by the current lxml implementation. It is expected to fail if the
+candidate cannot preserve the nested page structure; that failure is useful
+evidence, not a reason to change the production importer.
+
 ## Compare against the real dump
 
 Only if the compatibility probe proves that the candidate can reproduce all
