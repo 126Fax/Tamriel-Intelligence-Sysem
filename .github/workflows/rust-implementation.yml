@@ -1,0 +1,30 @@
+name: Rust implementation checks
+
+on:
+  push:
+    branches:
+      - implementation/rust-native
+    paths:
+      - "rust-engine/**"
+      - "rust-version/**"
+      - ".github/workflows/rust-implementation.yml"
+  pull_request:
+    branches:
+      - implementation/rust-native
+    paths:
+      - "rust-engine/**"
+      - "rust-version/**"
+      - ".github/workflows/rust-implementation.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test comparison engine
+        run: cargo test --manifest-path rust-engine/Cargo.toml
+      - name: Test full Rust implementation
+        run: cargo test --manifest-path rust-version/Cargo.toml
+      - name: Build release binary
+        run: cargo build --release --manifest-path rust-version/Cargo.toml
