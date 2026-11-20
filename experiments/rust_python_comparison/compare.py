@@ -11,6 +11,7 @@ import itertools
 import json
 import os
 import platform
+import sqlite3
 import subprocess
 try:
     import resource
@@ -105,6 +106,8 @@ def main() -> int:
                         help="Compare the entire dump instead of the default 10000-page sample.")
     parser.add_argument("--fact-pages", type=int, default=1000,
                         help="Number of initial pages used for fact-extraction parity.")
+    parser.add_argument("--db-batch-size", type=int, default=1000,
+                        help="Batch size for the isolated Python/Rust SQLite write comparison.")
     args = parser.parse_args()
     if args.full and args.limit != 10000:
         parser.error("Use either --full or --limit, not both.")
@@ -112,8 +115,8 @@ def main() -> int:
         args.limit = None
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be positive.")
-    if args.fact_pages < 1:
-        parser.error("--fact-pages must be positive.")
+    if args.fact_pages < 1 or args.db_batch_size < 1:
+        parser.error("--fact-pages and --db-batch-size must be positive.")
     if not RUST_BINARY.is_file():
         raise SystemExit(
             f"Rust executable not found: {RUST_BINARY}\n"
@@ -298,6 +301,84 @@ def main() -> int:
             "pages_compared": fact_pages,
             "scope": "mwparserfromhell parse + strip_code; Rust wikitext parser not implemented yet.",
         }
+        # Compare equivalent writes in disposable databases, never the project DB.
+        facts_input = temp_dir / "candidate_facts.jsonl"
+        with facts_input.open("w", encoding="utf-8") as handle:
+            for fact in python_facts:
+                handle.write(json.dumps(fact, ensure_ascii=False) + "\n")
+
+        python_db = temp_dir / "python_facts.sqlite"
+        python_db_started = perf_counter()
+        connection = sqlite3.connect(python_db)
+        connection.execute("""
+            CREATE TABLE candidate_facts (
+                fact_id INTEGER PRIMARY KEY,
+                source_page_id INTEGER NOT NULL,
+                source_page TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                relationship TEXT NOT NULL,
+                object TEXT NOT NULL,
+                evidence TEXT NOT NULL,
+                extraction_method TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                UNIQUE(source_page_id, subject, relationship, object, evidence)
+            )
+        """)
+        with facts_input.open(encoding="utf-8") as handle:
+            batch = []
+            for line in handle:
+                fact = json.loads(line)
+                batch.append((
+                    fact["source_page_id"], fact["source_page"], fact["subject"],
+                    fact["relationship"], fact["object"], fact["evidence"],
+                    fact["extraction_method"], fact["confidence"],
+                ))
+                if len(batch) >= args.db_batch_size:
+                    connection.executemany("""
+                        INSERT OR IGNORE INTO candidate_facts
+                        (source_page_id, source_page, subject, relationship, object,
+                         evidence, extraction_method, confidence)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, batch)
+                    connection.commit()
+                    batch.clear()
+            if batch:
+                connection.executemany("""
+                    INSERT OR IGNORE INTO candidate_facts
+                    (source_page_id, source_page, subject, relationship, object,
+                     evidence, extraction_method, confidence)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, batch)
+                connection.commit()
+        python_db_rows = connection.execute("SELECT COUNT(*) FROM candidate_facts").fetchone()[0]
+        connection.close()
+        python_db_seconds = perf_counter() - python_db_started
+
+        rust_db = temp_dir / "rust_facts.sqlite"
+        rust_db_started = perf_counter()
+        rust_db_result = subprocess.run(
+            [str(RUST_BINARY), "db", str(facts_input), str(rust_db), str(args.db_batch_size)],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+        rust_db_seconds = perf_counter() - rust_db_started
+        if rust_db_result.returncode != 0:
+            raise RuntimeError(f"Rust SQLite writer failed:\n{rust_db_result.stderr}")
+        rust_db_summary = json.loads(rust_db_result.stdout.strip().splitlines()[-1])
+        db_parity = {
+            "python_rows": python_db_rows,
+            "rust_rows": rust_db_summary["rows_in_database"],
+            "matches": python_db_rows == rust_db_summary["rows_in_database"],
+        }
+        report["sqlite_write"] = {
+            "python_elapsed_seconds": python_db_seconds,
+            "rust_elapsed_seconds": rust_db_seconds,
+            "python_rows_per_second": python_db_rows / python_db_seconds if python_db_seconds else 0,
+            "rust_rows_per_second": rust_db_summary["rows_in_database"] / rust_db_seconds if rust_db_seconds else 0,
+            "batch_size": args.db_batch_size,
+            "parity": db_parity,
+            "scope": "Equivalent isolated SQLite schema and batch commits in temporary databases; not the production schema or pipeline.",
+        }
+
         report["facts"] = {
             "python_elapsed_seconds": python_fact_seconds,
             "rust_elapsed_seconds": rust_fact_seconds,
@@ -315,8 +396,9 @@ def main() -> int:
                            encoding="utf-8")
     print(f"Wiki structure-count parity: {wiki_parity['matches']} ({fact_pages:,} pages)")
     print(f"Fact parity: {fact_parity['matches']} ({fact_pages:,} pages)")
+    print(f"SQLite row parity: {db_parity['matches']} ({db_parity['python_rows']:,} rows)")
     print(f"Report: {report_path}")
-    return 0 if xml_parity["matches"] and wiki_parity["matches"] and fact_parity["matches"] else 1
+    return 0 if xml_parity["matches"] and wiki_parity["matches"] and fact_parity["matches"] and db_parity["matches"] else 1
 
 
 if __name__ == "__main__":
