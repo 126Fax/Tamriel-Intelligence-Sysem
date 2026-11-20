@@ -209,6 +209,7 @@ def main() -> int:
         fact_pages = 0
         python_wiki_parse_seconds = 0.0
         python_template_extract_seconds = 0.0
+        python_strip_code_seconds = 0.0
         python_fact_seconds = 0.0
         with python_xml.open(encoding="utf-8") as source, fact_input.open("w", encoding="utf-8") as target, wiki_input.open("w", encoding="utf-8") as wiki_target:
             for line in source:
@@ -236,7 +237,9 @@ def main() -> int:
                     "heading_count": len(wikicode.filter_headings()),
                     "tag_count": len(wikicode.filter_tags()),
                 })
+                strip_started = perf_counter()
                 plain_text = wikicode.strip_code(normalize=True, collapse=True)
+                python_strip_code_seconds += perf_counter() - strip_started
                 page_text = {
                     "page_id": int(page["page_id"]),
                     "title": page["title"],
@@ -296,10 +299,10 @@ def main() -> int:
             "python_only_first_10": [list(item) for item in sorted(python_set - rust_set)[:10]],
             "rust_only_first_10": [list(item) for item in sorted(rust_set - python_set)[:10]],
         }
-        report["wiki_parse"] = {
-            "python_elapsed_seconds": python_wiki_parse_seconds,
+        report["wiki_markup_normalisation"] = {
+            "python_strip_code_elapsed_seconds": python_strip_code_seconds,
             "pages_compared": fact_pages,
-            "scope": "mwparserfromhell parse + strip_code; Rust wikitext parser not implemented yet.",
+            "scope": "Python mwparserfromhell.strip_code; Rust does not yet implement equivalent markup-to-plain-text conversion.",
         }
         # Compare equivalent writes in disposable databases, never the project DB.
         facts_input = temp_dir / "candidate_facts.jsonl"
