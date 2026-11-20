@@ -86,19 +86,21 @@ where
                     revision_id.clear();
                     revision_text = None;
                 } else if in_page && matches!(name.as_str(), "title" | "ns" | "id" | "text") {
-                    // Only capture page metadata and the direct revision fields.
-                    let is_page_id = name == "id" && !in_revision;
-                    let is_revision_field = in_revision && matches!(name.as_str(), "id" | "text");
-                    let is_page_field = !in_revision && matches!(name.as_str(), "title" | "ns");
-                    if is_page_id || is_revision_field || is_page_field {
-                        leaf = Some(name);
+                    // Match only direct children, as Element.findtext() does in Python.
+                    let parent = stack.last().map(String::as_str).unwrap_or("");
+                    let is_page_field = parent == "page" && matches!(name.as_str(), "title" | "ns" | "id");
+                    let is_revision_field = parent == "revision" && matches!(name.as_str(), "id" | "text");
+                    if is_page_field || is_revision_field {
+                        leaf = Some(name.clone());
                         leaf_text.clear();
                     }
                 }
+                stack.push(name);
             }
             Ok(Event::Empty(event)) => {
                 let name = event.local_name();
-                if in_page && name.as_ref() == b"text" && in_revision {
+                let parent = stack.last().map(String::as_str).unwrap_or("");
+                if in_page && parent == "revision" && name.as_ref() == b"text" {
                     revision_text = Some(String::new());
                 }
             }
@@ -152,6 +154,7 @@ where
                     in_revision = false;
                     leaf = None;
                 }
+                stack.pop();
             }
             Ok(Event::Eof) => break,
             Ok(_) => {}
