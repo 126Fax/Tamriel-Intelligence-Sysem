@@ -89,6 +89,7 @@ def run_sample(source_database_path, source_dump_id, source_name, sample_size, b
         export_path = Path(folder) / "knowledge_base.json"
         database.DATABASE_PATH = scratch_path
         try:
+            preparation_started = perf_counter()
             database.initialise_database()
             scratch_connection = database.get_connection()
             try:
@@ -102,6 +103,7 @@ def run_sample(source_database_path, source_dump_id, source_name, sample_size, b
                 )
             finally:
                 scratch_connection.close()
+            preparation_elapsed = perf_counter() - preparation_started
 
             started = perf_counter()
             analysis = analyse_dump(1, batch_size=batch_size)
