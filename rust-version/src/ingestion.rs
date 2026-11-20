@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
+use std::time::Instant;
 use tamriel_processing::for_each_page;
 
 fn read_namespaces(path: &Path) -> Result<HashMap<i64, String>> {
@@ -54,6 +55,20 @@ fn read_namespaces(path: &Path) -> Result<HashMap<i64, String>> {
 }
 
 pub fn import_dump(path: &Path, database_path: &Path, batch_size: usize, page_limit: Option<usize>) -> Result<(i64, u64)> {
+    import_dump_with_progress(path, database_path, batch_size, page_limit, |_, _| {})
+}
+
+/// Import the dump while reporting pages read and elapsed seconds.
+pub fn import_dump_with_progress<F>(
+    path: &Path,
+    database_path: &Path,
+    batch_size: usize,
+    page_limit: Option<usize>,
+    mut progress: F,
+) -> Result<(i64, u64)>
+where
+    F: FnMut(u64, f64),
+{
     if batch_size == 0 { anyhow::bail!("batch size must be at least 1"); }
     if !path.is_file() { anyhow::bail!("XML dump not found: {}", path.display()); }
     if !path.to_string_lossy().ends_with(".bz2") {
@@ -72,6 +87,8 @@ pub fn import_dump(path: &Path, database_path: &Path, batch_size: usize, page_li
     let decoder = MultiBzDecoder::new(file);
     let mut batch = Vec::with_capacity(batch_size);
     let mut inserted = 0u64;
+    let mut pages_read = 0u64;
+    let started = Instant::now();
     let result = for_each_page(BufReader::new(decoder), page_limit, |page| {
         let page_id: i64 = page.page_id.parse().map_err(|error| format!("invalid page ID: {error}"))?;
         let namespace_id: i64 = page.namespace.parse().map_err(|error| format!("invalid namespace ID: {error}"))?;
@@ -79,6 +96,10 @@ pub fn import_dump(path: &Path, database_path: &Path, batch_size: usize, page_li
         let namespace_name = namespaces.get(&namespace_id).cloned()
             .unwrap_or_else(|| format!("Unknown ({namespace_id})"));
         batch.push((page_id, page.title, namespace_id, namespace_name, revision_id, page.text));
+        pages_read += 1;
+        if pages_read % 500 == 0 {
+            progress(pages_read, started.elapsed().as_secs_f64());
+        }
         if batch.len() >= batch_size {
             inserted += insert_batch(&mut connection, dump_id, &batch).map_err(|error| error.to_string())?;
             batch.clear();
@@ -93,6 +114,7 @@ pub fn import_dump(path: &Path, database_path: &Path, batch_size: usize, page_li
         inserted += insert_batch(&mut connection, dump_id, &batch)?;
     }
     crate::database::set_dump_status(&connection, dump_id, "completed")?;
+    progress(pages_read, started.elapsed().as_secs_f64());
     Ok((dump_id, inserted))
 }
 
