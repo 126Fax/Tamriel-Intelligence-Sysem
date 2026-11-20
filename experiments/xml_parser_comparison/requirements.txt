@@ -1,0 +1,3 @@
+# Optional experiment dependency; not used by the production importer.
+# PyPI project: streaming-xml-parser; documented import name: xmlstream.
+xmlstream==1.0.0
