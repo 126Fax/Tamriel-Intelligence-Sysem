@@ -46,6 +46,43 @@ pub fn answer_question(database_path: &Path, question: &str) -> Result<String> {
         return Ok(format!("The reference catalogue contains {} traditional provinces of Tamriel: {}. This is a curated reference count, not proof that the extractor independently discovered all of them.", provinces.len(), provinces.join(", ")));
     }
 
+    let entity_type = if lowered.contains("race") { Some("race") }
+        else if lowered.contains("occupation") || lowered.contains("profession") || lowered.contains("job") { Some("occupation") }
+        else if lowered.contains("book") { Some("book") } else { None };
+    if let Some(kind) = entity_type {
+        if lowered.contains("how many") {
+            let count: i64 = connection.query_row(
+                "SELECT COUNT(DISTINCT value) FROM (
+                    SELECT value FROM entity_candidates WHERE entity_type=?1
+                    UNION SELECT value FROM external_observations WHERE entity_type=?1
+                 )", [kind], |row| row.get(0)
+            )?;
+            return Ok(format!("The current Rust database contains {count} distinct {kind} value(s) across its UESP, user and mod records. This is a database count, not a claim that the catalogue is complete."));
+        }
+        let mut output = Vec::new();
+        let mut statement = connection.prepare(
+            "SELECT subject,value,source_type,source_id,COALESCE(mod_id,''),evidence_text
+             FROM entity_candidates WHERE entity_type=?1
+             UNION ALL
+             SELECT subject,value,source_type,source_id,COALESCE(mod_id,''),evidence
+             FROM external_observations WHERE entity_type=?1
+             LIMIT 20"
+        )?;
+        let rows = statement.query_map([kind], |row| Ok((
+            row.get::<_,String>(0)?,row.get::<_,String>(1)?,row.get::<_,String>(2)?,
+            row.get::<_,String>(3)?,row.get::<_,String>(4)?,row.get::<_,String>(5)?
+        )))?;
+        for row in rows {
+            let (subject,value,source_type,source_id,mod_id,evidence) = row?;
+            let source = if mod_id.is_empty() { format!("{source_type}:{source_id}") }
+                else { format!("{source_type}:{source_id} (mod {mod_id})") };
+            output.push(format!("- {subject}: {value} [{source}] {evidence}"));
+        }
+        if !output.is_empty() {
+            return Ok(format!("Recorded {kind} observations (sources are kept separate):\\n{}",output.join("\\n")));
+        }
+    }
+
     let (relationship, term) = if lowered.contains("live") || lowered.contains("lives") {
         let subject = lowered.split("live").next().unwrap_or("").trim()
             .trim_start_matches("where do ").trim_start_matches("where does ")
