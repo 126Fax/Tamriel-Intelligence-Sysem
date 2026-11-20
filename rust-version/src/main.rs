@@ -78,7 +78,13 @@ fn main() -> Result<()> {
         Command::Analyse { dump_id,db,batch_size } => {
             let db_path = db.unwrap_or_else(config::default_database);
             let started = Instant::now();
-            let summary = analysis::analyse_dump(&db_path,dump_id,batch_size)?;
+            let summary = analysis::analyse_dump_with_progress(&db_path,dump_id,batch_size, |stats, done, total, elapsed| {
+                let rate = if elapsed > 0.0 { done as f64 / elapsed } else { 0.0 };
+                println!("  Analysing: {done}/{total} pages ({:.1}%) | {:.0} pages/s | links: {} | parameters: {} | facts: {} | typed candidates: {}",
+                    if total > 0 { done as f64 * 100.0 / total as f64 } else { 100.0 },
+                    rate, stats.wiki_links_extracted, stats.template_parameters_extracted,
+                    stats.candidate_facts_extracted, stats.entity_candidates_extracted);
+            })?;
             println!("Pages analysed: {}\nWiki links: {}\nTemplate parameters: {}\nCandidate facts: {}\nRace/occupation/book candidates: {}\nElapsed: {:.2}s",
                 summary.pages_analysed,summary.wiki_links_extracted,summary.template_parameters_extracted,
                 summary.candidate_facts_extracted,summary.entity_candidates_extracted,started.elapsed().as_secs_f64());
@@ -114,7 +120,13 @@ fn main() -> Result<()> {
             }
             println!("2/3 Running Bottom-Up analysis...");
             let started = Instant::now();
-            let summary = analysis::analyse_dump(&db_path,dump_id,analysis_batch_size)?;
+            let summary = analysis::analyse_dump_with_progress(&db_path,dump_id,analysis_batch_size, |stats, done, total, elapsed| {
+                let rate = if elapsed > 0.0 { done as f64 / elapsed } else { 0.0 };
+                println!("  Analysing: {done}/{total} pages ({:.1}%) | {:.0} pages/s | links: {} | parameters: {} | facts: {} | typed candidates: {}",
+                    if total > 0 { done as f64 * 100.0 / total as f64 } else { 100.0 },
+                    rate, stats.wiki_links_extracted, stats.template_parameters_extracted,
+                    stats.candidate_facts_extracted, stats.entity_candidates_extracted);
+            })?;
             println!("  {} pages | {} links | {} template parameters | {} facts | {} typed candidates | {:.2}s",
                 summary.pages_analysed,summary.wiki_links_extracted,summary.template_parameters_extracted,
                 summary.candidate_facts_extracted,summary.entity_candidates_extracted,started.elapsed().as_secs_f64());
