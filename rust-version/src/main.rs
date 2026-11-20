@@ -114,7 +114,11 @@ fn main() -> Result<()> {
             } else {
                 println!("1/3 Importing UESP XML...");
                 let started = Instant::now();
-                let (id,inserted) = ingestion::import_dump(&dump_path,&db_path,import_batch_size,limit)?;
+                let (id,inserted) = ingestion::import_dump_with_progress(&dump_path,&db_path,import_batch_size,limit, |read, elapsed| {
+                    let rate = if elapsed > 0.0 { read as f64 / elapsed } else { 0.0 };
+                    let target = limit.map(|value| value.to_string()).unwrap_or_else(|| "unknown".to_string());
+                    println!("  XML pages read: {read}/{target} | {:.0} pages/s | elapsed: {:.1}s", rate, elapsed);
+                })?;
                 dump_id = id;
                 println!("  Dump ID {dump_id}; {inserted} new pages; {:.2}s",started.elapsed().as_secs_f64());
             }
