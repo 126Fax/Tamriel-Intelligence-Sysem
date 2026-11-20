@@ -110,6 +110,7 @@ def main() -> int:
 
     print("XML stream parser compatibility probe")
     print(f"Candidate page callbacks: {len(callback_records)}")
+    print("Current lxml baseline: " + json.dumps(baseline_fields, ensure_ascii=False))
     print(f"Parser events: {json.dumps(dict(event_counts), sort_keys=True)}")
     print(f"Callback details: {json.dumps(callback_records, ensure_ascii=False)}")
     print(
