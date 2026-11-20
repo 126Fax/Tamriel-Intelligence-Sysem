@@ -156,8 +156,25 @@ pub fn analyse_wikitext(page_id: i64, title: &str, text: &str) -> WikiAnalysis {
 
 pub fn extract_facts(plain_text: &str, page_id: i64, title: &str, provinces: &[String]) -> Vec<CandidateFact> {
     let mut facts = Vec::new();
-    let sentences = Regex::new(r"(?<=[.!?])\s+|\n+").unwrap();
-    for raw_sentence in sentences.split(plain_text) {
+    let mut sentence_ranges = Vec::new();
+    let mut start = 0usize;
+    let chars: Vec<(usize, char)> = plain_text.char_indices().collect();
+    for (index, (position, character)) in chars.iter().enumerate() {
+        let next_is_space = chars.get(index + 1)
+            .map(|(_, next)| next.is_whitespace()).unwrap_or(true);
+        if *character == '\\n' || (matches!(character, '.' | '!' | '?') && next_is_space) {
+            let end = position + character.len_utf8();
+            if end > start { sentence_ranges.push(&plain_text[start..end]); }
+            start = end;
+            while start < plain_text.len() {
+                let next = plain_text[start..].chars().next().unwrap();
+                if !next.is_whitespace() { break; }
+                start += next.len_utf8();
+            }
+        }
+    }
+    if start < plain_text.len() { sentence_ranges.push(&plain_text[start..]); }
+    for raw_sentence in sentence_ranges {
         let sentence = WHITESPACE_RE.replace_all(raw_sentence, " ").trim().to_string();
         if sentence.is_empty() { continue; }
         for (relationship, pattern, confidence) in FACT_PATTERNS.iter() {
