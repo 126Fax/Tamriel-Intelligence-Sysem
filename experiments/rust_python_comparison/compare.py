@@ -205,6 +205,7 @@ def main() -> int:
         python_facts = []
         fact_pages = 0
         python_wiki_parse_seconds = 0.0
+        python_template_extract_seconds = 0.0
         python_fact_seconds = 0.0
         with python_xml.open(encoding="utf-8") as source, fact_input.open("w", encoding="utf-8") as target, wiki_input.open("w", encoding="utf-8") as wiki_target:
             for line in source:
