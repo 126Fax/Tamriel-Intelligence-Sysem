@@ -162,7 +162,7 @@ pub fn extract_facts(plain_text: &str, page_id: i64, title: &str, provinces: &[S
     for (index, (position, character)) in chars.iter().enumerate() {
         let next_is_space = chars.get(index + 1)
             .map(|(_, next)| next.is_whitespace()).unwrap_or(true);
-        if *character == '\\n' || (matches!(character, '.' | '!' | '?') && next_is_space) {
+        if *character == '\n' || (matches!(character, '.' | '!' | '?') && next_is_space) {
             let end = position + character.len_utf8();
             if end > start { sentence_ranges.push(&plain_text[start..end]); }
             start = end;
