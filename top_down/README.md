@@ -1,14 +1,24 @@
 # Top-down AI – Lore Assistant
 
-## Current working prototype
+## Current capabilities
 
-The first end-to-end rule-based question-answering prototype is now runnable. It connects three stages:
+The Top-Down AI is an explainable, rule-based assistant. It now combines:
 
-1. **Question analysis** – recognises a small set of natural-language question patterns and extracts subject/object hints.
-2. **Knowledge retrieval** – loads and validates `knowledge_base.json`, then finds matching subject–relationship–object records.
-3. **Answer generation** – turns matching records into a short answer and refuses to guess when no matching fact is stored.
+1. **Question analysis** – recognises count questions, named-subject questions,
+   relationship questions and general searches.
+2. **Structured fact retrieval** – searches the exported
+   `knowledge_base.json` subject–relationship–object records.
+3. **SQLite retrieval** – searches imported page titles and text, plus
+   evidence-backed `candidate_facts`.
+4. **Count queries** – counts distinct entities only where structured
+   occupation/type data exists. It does not mistake the number of keyword
+   mentions or pages for the number of people.
+5. **Evidence-aware answers** – shows source pages and extracts where
+   available, and says when the stored data cannot support a reliable answer.
 
-This is an explainable Python prototype, not an LLM. Its language understanding is intentionally limited to the patterns described below.
+This is still a deterministic Python system, not a general-purpose LLM. It
+cannot understand every possible wording yet. Its language analyser and
+retrieval rules are designed to be extended with tests.
 
 ## Run it
 
@@ -18,51 +28,36 @@ From the repository root:
 python -m top_down.chat
 ```
 
-You can also ask one question from a Python script:
+Example questions:
 
-```python
-from top_down.assistant import answer_question
+- `What do you know?` (full stored knowledge overview)
+- `Tell me a random fact` (no-repeat cycle through stored facts)\n- `What do you know about Skyrim?`
+- `Who is Vivec?`
+- `Where do dragons live?`
+- `How many farmers are there?`
+- `How many continents are there?`
+- `How many provinces are there?`
 
-result = answer_question("Where do dragons live?")
-print(result["answer"])
-print(result["facts"])
-```
+The province question uses the traditional nine-province reference catalogue.
+Other counts require structured evidence in the SQLite analysis tables. If
+there is no reliable structured data, the assistant reports that it cannot
+give a count rather than guessing.
 
-The default knowledge-base path is the repository's root-level `knowledge_base.json`. To use a different JSON file, pass its path as the second argument to `answer_question`.
+## Data sources
 
-## Supported question patterns
-
-| Example | Expected behaviour |
-|---|---|
-| `Which provinces belong to the Empire?` | Finds all records with relationship `province` and object `Empire`. |
-| `Where do dragons live?` | Finds the `lives in` fact for `Dragons`. |
-| `Who rules Skyrim?` | Searches for a `rules` relationship pointing to Skyrim; currently returns an honest no-information answer because the sample data has no such fact. |
-
-The current six sample records are manually supplied prototype data. They are not claimed to have been discovered automatically from the 477,491-page UESP dump.
-
-## Test it
-
-Run the full repository test suite:
-
-```bash
-python -m unittest discover -s tests -p "test_*.py" -v
-```
-
-The top-down tests cover question parsing, retrieval, answer generation, unknown questions, and malformed knowledge-base files.
+- `knowledge_base.json`: extracted candidate subject–relationship–object facts.
+- `data/database/tamriel_intelligence.db`: imported wiki pages, template
+  parameters and candidate facts (generated locally and not committed).
+- `data/reference/provinces.json`: the nine-name traditional province
+  reference catalogue. This catalogue is kept separate from discoveries.
 
 ## Current limitations
 
-- Pattern-based question recognition; it does not understand arbitrary natural language.
-- Exact entity matching after case and whitespace normalisation.
-- No inference beyond the stored triples.
-- No source-page provenance is currently attached to the sample facts.
-- The sample knowledge base is small and manually authored.
-- It is not yet connected to facts extracted from the full UESP database.
-
-## Next development steps
-
-1. Add source-page IDs and evidence snippets to every extracted fact.
-2. Connect retrieval to the bottom-up system's structured output.
-3. Expand question patterns and test paraphrases.
-4. Evaluate answer accuracy against a larger set of questions.
-5. Consider semantic retrieval only after the rule-based baseline is measurable.
+- The question analyser is pattern-based; unusual wording may need a new
+  tested pattern.
+- Counting farmers depends on occupation/profession/job fields being present
+  and correctly extracted from the imported wiki templates.
+- Counting continents depends on explicit continent type/relationship data.
+  The assistant will not infer a count from page mentions.
+- Search results are source material. A matching page or extracted candidate
+  is not automatically a verified lore fact.

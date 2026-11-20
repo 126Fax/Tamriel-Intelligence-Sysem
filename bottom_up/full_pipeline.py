@@ -6,6 +6,7 @@ relationships. It does not claim that every wiki link is a semantic fact.
 import json
 import re
 from pathlib import Path
+from time import perf_counter
 
 import mwparserfromhell
 
@@ -13,7 +14,7 @@ from src.database import database
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_KNOWLEDGE_BASE_PATH = PROJECT_ROOT / "knowledge_base.json"
-DEFAULT_BATCH_SIZE = 250
+DEFAULT_BATCH_SIZE = 32000
 
 # Explicit sentence patterns only: every result retains the original sentence.
 FACT_PATTERNS = (
@@ -87,6 +88,9 @@ def ensure_analysis_schema(connection):
 
         CREATE INDEX IF NOT EXISTS idx_template_parameters_lookup
             ON page_template_parameters(template_name, parameter_name);
+
+        CREATE INDEX IF NOT EXISTS idx_template_parameter_name_value
+            ON page_template_parameters(parameter_name COLLATE NOCASE, parameter_value COLLATE NOCASE);
         CREATE INDEX IF NOT EXISTS idx_template_parameters_source
             ON page_template_parameters(dump_id, source_page_id);
 
@@ -173,14 +177,23 @@ def extract_template_parameters(wikicode, source_page_id, source_title):
     return parameters
 
 
-def extract_candidate_facts(plain_text, source_page_id, source_title):
-    """Extract a small set of explicit sentence relationships with evidence."""
+def extract_candidate_facts(plain_text, source_page_id, source_title,
+                            provinces=None):
+    """Extract explicit relations plus targeted evidence for known provinces.
+
+    Pass a preloaded province catalogue when processing many pages so the
+    catalogue is read once per analysis run, not once per page.
+    """
+    if provinces is None:
+        from bottom_up.province_catalog import load_provinces
+        provinces = load_provinces()
+
     facts = []
-    # Sentence splitting is intentionally conservative; evidence is retained.
     for sentence in re.split(r"(?<=[.!?])\s+|\n+", plain_text):
         sentence = re.sub(r"\s+", " ", sentence).strip()
         if not sentence:
             continue
+
         for relationship, pattern, confidence in FACT_PATTERNS:
             for match in pattern.finditer(sentence):
                 subject = _clean_entity(match.group("subject"))
@@ -197,7 +210,31 @@ def extract_candidate_facts(plain_text, source_page_id, source_title):
                     "extraction_method": "explicit_sentence_pattern_v1",
                     "confidence": confidence,
                 })
-    # Preserve order while avoiding duplicate pattern hits in the same sentence.
+
+        # The reference catalogue helps the extractor look for less common
+        # phrasings, but a province candidate is emitted only when the source
+        # sentence explicitly connects that name to Tamriel's provinces.
+        for province in provinces:
+            escaped = re.escape(province)
+            province_contexts = (
+                rf"\b{escaped}\b.{{0,500}}\b(?:one of the |among the )?"
+                rf"(?:nine )?provinces? of Tamriel\b",
+                rf"\bprovinces? of Tamriel\b.{{0,500}}\b{escaped}\b",
+                rf"\bTamriel['’]s (?:nine )?provinces?\b.{{0,500}}\b{escaped}\b",
+            )
+            if any(re.search(pattern, sentence, re.IGNORECASE)
+                   for pattern in province_contexts):
+                facts.append({
+                    "source_page_id": int(source_page_id),
+                    "source_page": source_title,
+                    "subject": province,
+                    "relationship": "province of",
+                    "object": "Tamriel",
+                    "evidence": sentence[:2000],
+                    "extraction_method": "province_reference_context_v1",
+                    "confidence": 0.92,
+                })
+
     unique = []
     seen = set()
     for fact in facts:
@@ -208,7 +245,6 @@ def extract_candidate_facts(plain_text, source_page_id, source_title):
             unique.append(fact)
     return unique
 
-
 def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None):
     """Analyse every imported page for one dump and persist evidence in SQLite."""
     if batch_size < 1:
@@ -216,8 +252,15 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
 
     connection = database.get_connection()
     processed = links_found = facts_found = template_parameters_found = 0
+    timings = {"schema_setup": 0.0, "clear_previous_results": 0.0,
+               "province_catalogue": 0.0, "page_selection": 0.0, "page_fetch": 0.0,
+               "wiki_parsing": 0.0, "template_extraction_and_storage": 0.0,
+               "link_extraction_and_storage": 0.0,
+               "fact_extraction_and_storage": 0.0, "database_commits": 0.0}
     try:
+        stage_started = perf_counter()
         ensure_analysis_schema(connection)
+        timings["schema_setup"] += perf_counter() - stage_started
         dump = connection.execute(
             "SELECT dump_id FROM source_dumps WHERE dump_id = ?", (dump_id,)
         ).fetchone()
@@ -225,6 +268,7 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
             raise ValueError(f"Dump ID {dump_id} does not exist.")
 
         # A rerun rebuilds only derived analysis for this dump.
+        stage_started = perf_counter()
         connection.execute("DELETE FROM candidate_facts WHERE dump_id = ?", (dump_id,))
         connection.execute(
             "DELETE FROM page_template_parameters WHERE dump_id = ?", (dump_id,)
@@ -232,7 +276,15 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
         connection.execute("DELETE FROM page_links WHERE dump_id = ?", (dump_id,))
         connection.execute("DELETE FROM page_analysis WHERE dump_id = ?", (dump_id,))
         connection.commit()
+        timings["clear_previous_results"] += perf_counter() - stage_started
 
+        # Load this small reference catalogue once, rather than once per page.
+        from bottom_up.province_catalog import load_provinces
+        stage_started = perf_counter()
+        provinces = load_provinces()
+        timings["province_catalogue"] += perf_counter() - stage_started
+
+        stage_started = perf_counter()
         cursor = connection.execute(
             """
             SELECT page_id, title, page_text
@@ -242,11 +294,15 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
             """,
             (dump_id,),
         )
+        timings["page_selection"] += perf_counter() - stage_started
         while True:
+            stage_started = perf_counter()
             rows = cursor.fetchmany(batch_size)
+            timings["page_fetch"] += perf_counter() - stage_started
             if not rows:
                 break
             for page in rows:
+                stage_started = perf_counter()
                 wikicode = mwparserfromhell.parse(page["page_text"] or "")
                 templates = wikicode.filter_templates()
                 links = wikicode.filter_wikilinks()
@@ -255,6 +311,8 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
                 plain_text = wikicode.strip_code(
                     normalize=True, collapse=True
                 )
+                timings["wiki_parsing"] += perf_counter() - stage_started
+                stage_started = perf_counter()
                 connection.execute(
                     """
                     INSERT INTO page_analysis
@@ -287,7 +345,9 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
                         ),
                     )
                     template_parameters_found += 1
+                timings["template_extraction_and_storage"] += perf_counter() - stage_started
 
+                stage_started = perf_counter()
                 for link in links:
                     destination = str(link.title).strip()
                     display = (
@@ -304,9 +364,11 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
                          destination, display),
                     )
                     links_found += 1
+                timings["link_extraction_and_storage"] += perf_counter() - stage_started
 
+                stage_started = perf_counter()
                 for fact in extract_candidate_facts(
-                    plain_text, page["page_id"], page["title"]
+                    plain_text, page["page_id"], page["title"], provinces
                 ):
                     connection.execute(
                         """
@@ -322,9 +384,12 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
                          fact["confidence"]),
                     )
                     facts_found += 1
+                timings["fact_extraction_and_storage"] += perf_counter() - stage_started
                 processed += 1
 
+            stage_started = perf_counter()
             connection.commit()
+            timings["database_commits"] += perf_counter() - stage_started
             if progress_callback is not None:
                 progress_callback(processed, links_found, facts_found)
 
@@ -333,6 +398,7 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
             "wiki_links_extracted": links_found,
             "candidate_facts_extracted": facts_found,
             "template_parameters_extracted": template_parameters_found,
+            "stage_timings": timings,
         }
     finally:
         connection.close()
