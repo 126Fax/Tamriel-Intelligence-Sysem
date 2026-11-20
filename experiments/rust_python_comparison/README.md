@@ -34,12 +34,13 @@ python -m experiments.rust_python_comparison.compare --limit 10000
 Run the full XML comparison (both implementations read the dump independently):
 
 ```bash
-python -m experiments.rust_python_comparison.compare
+python -m experiments.rust_python_comparison.compare --full
 ```
 
 The harness writes a JSON report under `data/performance/`. It reports
 elapsed time, pages/second, exact XML record parity, and fact-extraction parity
-for the tested sample. The fact comparison deliberately uses an empty province
+for the tested sample. The default is a 10,000-page sample; `--full` opts into
+the complete dump. The fact comparison deliberately uses an empty province
 catalogue so it isolates the three shared sentence patterns; the separate
 province-reference extractor remains Python-only in this first iteration.
 
