@@ -12,6 +12,10 @@ import json
 import os
 import platform
 import subprocess
+try:
+    import resource
+except ImportError:  # Windows
+    resource = None
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -30,6 +34,14 @@ RUST_BINARY = ROOT / "rust-engine" / "target" / "release" / (
     "tamriel-processing.exe" if os.name == "nt" else "tamriel-processing"
 )
 REPORT_DIR = ROOT / "data" / "performance"
+
+
+def peak_rss_mb(who: int = 0):
+    """Return process peak RSS in MiB where the platform exposes it."""
+    if resource is None:
+        return None
+    value = resource.getrusage(who).ru_maxrss
+    return value / (1024 * 1024) if sys.platform == "darwin" else value / 1024
 
 
 def write_jsonl(path: Path, rows) -> int:
@@ -129,6 +141,7 @@ def main() -> int:
         rust_xml = temp_dir / "rust_pages.jsonl"
 
         print("1/4 Python XML reader + JSONL output")
+        python_rss_before = peak_rss_mb()
         started = perf_counter()
         python_rows = inter_page_data(dump_path)
         if args.limit is not None:
@@ -144,8 +157,10 @@ def main() -> int:
             for row in python_rows
         ))
         python_xml_seconds = perf_counter() - started
+        python_rss_after = peak_rss_mb()
 
         print("2/4 Rust streaming XML reader + JSONL output")
+        rust_child_rss_before = peak_rss_mb(-1)
         command = [str(RUST_BINARY), "xml", str(dump_path)]
         if args.limit is not None:
             command.append(str(args.limit))
@@ -154,6 +169,7 @@ def main() -> int:
             result = subprocess.run(command, cwd=ROOT, stdout=output,
                                     stderr=subprocess.PIPE, text=True, check=False)
         rust_xml_seconds = perf_counter() - started
+        rust_xml_peak_rss = peak_rss_mb(-1)
         if result.returncode != 0:
             raise RuntimeError(f"Rust XML reader failed:\n{result.stderr}")
 
@@ -169,6 +185,11 @@ def main() -> int:
             "speed_ratio_python_over_rust": (
                 python_xml_seconds / rust_xml_seconds if rust_xml_seconds else None
             ),
+            "python_process_peak_rss_mb_before": python_rss_before,
+            "python_process_peak_rss_mb_after": python_rss_after,
+            "rust_child_peak_rss_mb_before": rust_child_rss_before,
+            "rust_xml_child_peak_rss_mb_after": rust_xml_peak_rss,
+            "memory_note": "Peak RSS is process high-water data, not an isolated per-stage allocation measurement.",
             "parity": xml_parity,
         }
         print(f"    Python: {python_xml_seconds:.2f}s ({python_count:,} pages)")
@@ -179,28 +200,32 @@ def main() -> int:
         fact_input = temp_dir / "fact_pages.jsonl"
         python_facts = []
         fact_pages = 0
-        started = perf_counter()
+        python_wiki_parse_seconds = 0.0
+        python_fact_seconds = 0.0
         with python_xml.open(encoding="utf-8") as source, fact_input.open("w", encoding="utf-8") as target:
             for line in source:
                 if fact_pages >= args.fact_pages:
                     break
                 page = json.loads(line)
+                parse_started = perf_counter()
                 plain_text = mwparserfromhell.parse(page["text"] or "").strip_code(
                     normalize=True, collapse=True
                 )
+                python_wiki_parse_seconds += perf_counter() - parse_started
                 page_text = {
                     "page_id": int(page["page_id"]),
                     "title": page["title"],
                     "text": plain_text,
                 }
                 target.write(json.dumps(page_text, ensure_ascii=False) + "\n")
+                fact_started = perf_counter()
                 python_facts.extend(
                     extract_candidate_facts(
                         plain_text, page_text["page_id"], page_text["title"], provinces=[]
                     )
                 )
+                python_fact_seconds += perf_counter() - fact_started
                 fact_pages += 1
-        python_fact_seconds = perf_counter() - started
         python_fact_keys = [fact_key(fact) for fact in python_facts]
 
         print("4/4 Rust fact extraction")
@@ -222,6 +247,11 @@ def main() -> int:
             "matches": python_set == rust_set and len(python_fact_keys) == len(rust_fact_keys),
             "python_only_first_10": [list(item) for item in sorted(python_set - rust_set)[:10]],
             "rust_only_first_10": [list(item) for item in sorted(rust_set - python_set)[:10]],
+        }
+        report["wiki_parse"] = {
+            "python_elapsed_seconds": python_wiki_parse_seconds,
+            "pages_compared": fact_pages,
+            "scope": "mwparserfromhell parse + strip_code; Rust wikitext parser not implemented yet.",
         }
         report["facts"] = {
             "python_elapsed_seconds": python_fact_seconds,
