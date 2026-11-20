@@ -9,7 +9,6 @@ static FACT_PATTERNS: LazyLock<Vec<(&'static str, Regex, f64)>> = LazyLock::new(
 ]);
 static LINK_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[\[([^]|]+)(?:\|([^]]+))?\]\]").unwrap());
 static TAG_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)<[^>]*>").unwrap());
-static TEMPLATE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)\{\{.*?\}\}").unwrap());
 static WHITESPACE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").unwrap());
 
 #[derive(Debug, Clone)]
