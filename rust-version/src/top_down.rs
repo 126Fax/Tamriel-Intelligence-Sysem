@@ -11,7 +11,7 @@ fn fact_lines(connection: &Connection, relationship: Option<&str>, term: Option<
     let mut statement = connection.prepare(
         "SELECT subject,relationship,object,source_title,evidence_text
          FROM candidate_facts
-         WHERE (?1 IS NULL OR lower(relationship)=lower(?1))
+         WHERE (?1 IS NULL OR lower(relationship)=lower(?1) OR (?1='province' AND lower(relationship)='province of'))
            AND (?2 IS NULL OR subject LIKE ?2 OR object LIKE ?2 OR evidence_text LIKE ?2)
          ORDER BY confidence DESC LIMIT ?3"
     )?;
