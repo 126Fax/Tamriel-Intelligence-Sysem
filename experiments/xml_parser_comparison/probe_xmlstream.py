@@ -37,7 +37,7 @@ def main() -> int:
     except ImportError:
         print(
             "Candidate package is not installed. Install it with: "
-            "python -m pip install xmlstream"
+            "python -m pip install -r experiments/xml_parser_comparison/requirements.txt"
         )
         return 2
 
