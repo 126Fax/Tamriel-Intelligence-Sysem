@@ -73,7 +73,7 @@ fn main() -> Result<()> {
             let db_path = db.unwrap_or_else(config::default_database);
             let started = Instant::now();
             let (dump_id,inserted) = ingestion::import_dump(&dump_path,&db_path,batch_size,limit)?;
-            println!("Dump ID: {dump_id}\nNew pages inserted: {inserted:,}\nElapsed: {:.2}s",started.elapsed().as_secs_f64());
+            println!("Dump ID: {dump_id}\nNew pages inserted: {inserted}\nElapsed: {:.2}s",started.elapsed().as_secs_f64());
         }
         Command::Analyse { dump_id,db,batch_size } => {
             let db_path = db.unwrap_or_else(config::default_database);
@@ -87,7 +87,7 @@ fn main() -> Result<()> {
             let db_path = db.unwrap_or_else(config::default_database);
             let output_path = output.unwrap_or_else(config::default_knowledge_base);
             let count = knowledge::export_knowledge_base(&db_path,dump_id,&output_path)?;
-            println!("Exported {count:,} knowledge records to {}",output_path.display());
+            println!("Exported {count} knowledge records to {}",output_path.display());
         }
         Command::Run { dump,db,output,import_batch_size,analysis_batch_size,limit,skip_import } => {
             if import_batch_size == 0 || analysis_batch_size == 0 {
@@ -110,7 +110,7 @@ fn main() -> Result<()> {
                 let started = Instant::now();
                 let (id,inserted) = ingestion::import_dump(&dump_path,&db_path,import_batch_size,limit)?;
                 dump_id = id;
-                println!("  Dump ID {dump_id}; {inserted:,} new pages; {:.2}s",started.elapsed().as_secs_f64());
+                println!("  Dump ID {dump_id}; {inserted} new pages; {:.2}s",started.elapsed().as_secs_f64());
             }
             println!("2/3 Running Bottom-Up analysis...");
             let started = Instant::now();
@@ -120,7 +120,7 @@ fn main() -> Result<()> {
                 summary.candidate_facts_extracted,summary.entity_candidates_extracted,started.elapsed().as_secs_f64());
             println!("3/3 Exporting knowledge base...");
             let count = knowledge::export_knowledge_base(&db_path,dump_id,&output_path)?;
-            println!("  {count:,} records -> {}",output_path.display());
+            println!("  {count} records -> {}",output_path.display());
             println!("Rust pipeline complete in {:.2}s.",total_started.elapsed().as_secs_f64());
         }
         Command::Ask { question,db } => {
@@ -132,7 +132,7 @@ fn main() -> Result<()> {
             let connection = database::connect(&db_path)?;
             for table in ["source_dumps","pages","page_analysis","page_template_parameters","page_links","candidate_facts","entity_candidates","external_observations"] {
                 let count: i64 = connection.query_row(&format!("SELECT COUNT(*) FROM {table}"),[],|row| row.get(0))?;
-                println!("{table}: {count:,}");
+                println!("{table}: {count}");
             }
             println!("Database: {}",db_path.display());
         }
