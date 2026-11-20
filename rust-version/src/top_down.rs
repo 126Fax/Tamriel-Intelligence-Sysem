@@ -100,7 +100,7 @@ pub fn answer_question(database_path: &Path, question: &str) -> Result<String> {
     }
 
     let search_term = term.unwrap_or_else(|| question.to_string());
-    let pages = connection.prepare(
+    let mut pages = connection.prepare(
         "SELECT title,namespace_name,page_text FROM pages
          WHERE title LIKE ?1 OR page_text LIKE ?1
          ORDER BY CASE WHEN title LIKE ?1 THEN 0 ELSE 1 END,text_length DESC LIMIT 8"
