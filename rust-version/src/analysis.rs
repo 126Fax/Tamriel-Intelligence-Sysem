@@ -14,7 +14,7 @@ pub struct AnalysisSummary {
 }
 
 pub fn analyse_dump(database_path: &std::path::Path, dump_id: i64, batch_size: usize) -> Result<AnalysisSummary> {
-    analyse_dump_with_progress(database_path, dump_id, batch_size, |_, _, _, _| {})
+    analyse_dump_with_progress_and_limit(database_path, dump_id, batch_size, None, |_, _, _, _| {})
 }
 
 /// Rebuild analysis tables and report live progress as pages are processed.
@@ -23,6 +23,21 @@ pub fn analyse_dump_with_progress<F>(
     database_path: &std::path::Path,
     dump_id: i64,
     batch_size: usize,
+    progress: F,
+) -> Result<AnalysisSummary>
+where
+    F: FnMut(&AnalysisSummary, u64, u64, f64),
+{
+    analyse_dump_with_progress_and_limit(database_path, dump_id, batch_size, None, progress)
+}
+
+/// Rebuild analysis tables for at most page_limit pages and report live progress.
+/// The callback receives (summary, pages_processed, pages_to_process, elapsed_seconds).
+pub fn analyse_dump_with_progress_and_limit<F>(
+    database_path: &std::path::Path,
+    dump_id: i64,
+    batch_size: usize,
+    page_limit: Option<usize>,
     mut progress: F,
 ) -> Result<AnalysisSummary>
 where
@@ -50,6 +65,7 @@ where
     let total_pages: u64 = read_connection.query_row(
         "SELECT COUNT(*) FROM pages WHERE dump_id=?", [dump_id], |row| row.get::<_, i64>(0)
     )? as u64;
+    let total_pages = page_limit.map(|limit| total_pages.min(limit as u64)).unwrap_or(total_pages);
     let started = Instant::now();
     let progress_interval = (total_pages / 100).max(1).min(500);
     let province_path = project_root().join("rust-version/data/reference/provinces.json");
@@ -58,10 +74,13 @@ where
     let mut last_page_id = 0i64;
 
     loop {
+        if summary.pages_analysed >= total_pages { break; }
+        let remaining = total_pages - summary.pages_analysed;
+        let current_batch_size = (batch_size as u64).min(remaining) as i64;
         let mut statement = read_connection.prepare(
             "SELECT page_id,title,page_text FROM pages WHERE dump_id=? AND page_id>? ORDER BY page_id LIMIT ?"
         )?;
-        let rows = statement.query_map(params![dump_id,last_page_id,batch_size as i64], |row| {
+        let rows = statement.query_map(params![dump_id,last_page_id,current_batch_size], |row| {
             Ok((row.get::<_,i64>(0)?,row.get::<_,String>(1)?,row.get::<_,String>(2)?))
         })?;
         let mut pages = Vec::new();
