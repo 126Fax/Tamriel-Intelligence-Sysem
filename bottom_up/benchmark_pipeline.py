@@ -145,7 +145,13 @@ def main():
     if args.batch_size < 1 or any(size < 1 for size in args.sizes):
         parser.error("Sample sizes and batch size must be at least 1.")
 
+    # Ensure the schema exists before querying source_dumps. get_connection()
+    # deliberately does not initialise or migrate the database.
+    database.initialise_database()
+    database.migrate_database()
+
     source_database_path = database.DATABASE_PATH
+    print(f"Database: {source_database_path}")
     source_dump_id, source_name, available_pages = get_source_dump()
     print(f"Source dump: {source_name} (ID {source_dump_id})")
     print(f"Available pages: {available_pages:,}")
