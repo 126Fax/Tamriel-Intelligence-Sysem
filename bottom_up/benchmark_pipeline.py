@@ -11,7 +11,11 @@ from pathlib import Path
 from time import perf_counter
 
 from src.database import database
-from bottom_up.full_pipeline import analyse_dump, build_knowledge_base
+from bottom_up.full_pipeline import (
+    DEFAULT_BATCH_SIZE,
+    analyse_dump,
+    build_knowledge_base,
+)
 
 
 def get_source_dump():
@@ -138,8 +142,8 @@ def main():
         help="Sample sizes to test (default: 100 1000 10000 50000).",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=250,
-        help="Analysis batch size (default: 250).",
+        "--batch-size", type=int, default=DEFAULT_BATCH_SIZE,
+        help=f"Analysis batch size (default: {DEFAULT_BATCH_SIZE:,}).",
     )
     args = parser.parse_args()
     if args.batch_size < 1 or any(size < 1 for size in args.sizes):
