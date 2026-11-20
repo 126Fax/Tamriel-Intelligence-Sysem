@@ -82,6 +82,24 @@ CREATE TABLE IF NOT EXISTS external_observations (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CHECK(source_type != 'mod' OR mod_id IS NOT NULL)
 );
+CREATE TABLE IF NOT EXISTS entity_candidates (
+    entity_candidate_id INTEGER PRIMARY KEY,
+    dump_id INTEGER NOT NULL,
+    source_page_id INTEGER NOT NULL,
+    source_title TEXT NOT NULL,
+    entity_type TEXT NOT NULL CHECK(entity_type IN ('race','occupation','book')),
+    value TEXT NOT NULL,
+    evidence_text TEXT NOT NULL,
+    extraction_method TEXT NOT NULL,
+    source_type TEXT NOT NULL DEFAULT 'uesp' CHECK(source_type IN ('uesp','user','mod')),
+    source_id TEXT NOT NULL,
+    mod_id TEXT,
+    FOREIGN KEY (dump_id,source_page_id) REFERENCES pages(dump_id,page_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_entity_candidates_type_value
+    ON entity_candidates(entity_type,value COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_entity_candidates_source
+    ON entity_candidates(source_type,source_id,mod_id);
 CREATE INDEX IF NOT EXISTS idx_external_observations_source
     ON external_observations(source_type,source_id,mod_id);
 "#;
