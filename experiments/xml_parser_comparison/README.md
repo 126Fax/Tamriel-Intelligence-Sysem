@@ -50,7 +50,7 @@ is a compatibility check, not a performance result.
 After installing the optional package, run:
 
 ```bash
-python -m unittest tests.test_xmlstream_compatibility -v
+python -m unittest discover -s tests -p "test_xmlstream_compatibility.py" -v
 ```
 
 The test compares the candidate's reconstructed fields with the same sample
