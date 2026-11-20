@@ -1,0 +1,19 @@
+[
+  {
+    "entity_type": "race",
+    "subject": "Example Character",
+    "value": "Nord",
+    "source_type": "user",
+    "source_id": "submission-001",
+    "evidence": "The user supplied this character detail."
+  },
+  {
+    "entity_type": "occupation",
+    "subject": "Example Character",
+    "value": "Scholar",
+    "source_type": "mod",
+    "source_id": "mod-import-001",
+    "mod_id": "example-mod",
+    "evidence": "Imported from the example mod data."
+  }
+]
