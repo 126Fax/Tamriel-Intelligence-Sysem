@@ -16,11 +16,11 @@ struct ReviewReport {
 }
 
 #[derive(Serialize)]
-struct Summary {
-    total: usize,
-    approved: usize,
-    rejected: usize,
-    needs_review: usize,
+pub struct Summary {
+    pub total: usize,
+    pub approved: usize,
+    pub rejected: usize,
+    pub needs_review: usize,
 }
 
 pub fn review_file(input: &Path, output: &Path) -> Result<Summary> {
