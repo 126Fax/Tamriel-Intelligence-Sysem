@@ -5,6 +5,7 @@ Run from the repository root:
     python -m bottom_up.benchmark_pipeline --sizes 100 1000 10000
 """
 import argparse
+import sqlite3
 import tempfile
 from pathlib import Path
 from time import perf_counter
@@ -30,9 +31,10 @@ def get_source_dump():
         connection.close()
 
 
-def copy_evenly_spaced_pages(source_dump_id, sample_size, scratch_connection):
+def copy_evenly_spaced_pages(source_database_path, source_dump_id, sample_size, scratch_connection):
     """Copy a deterministic sample spread across the source page-ID range."""
-    source_connection = database.get_connection()
+    source_connection = sqlite3.connect(source_database_path)
+    source_connection.row_factory = sqlite3.Row
     try:
         cursor = source_connection.execute(
             """
@@ -80,7 +82,7 @@ def copy_evenly_spaced_pages(source_dump_id, sample_size, scratch_connection):
         source_connection.close()
 
 
-def run_sample(source_dump_id, source_name, sample_size, batch_size):
+def run_sample(source_database_path, source_dump_id, source_name, sample_size, batch_size):
     original_database_path = database.DATABASE_PATH
     with tempfile.TemporaryDirectory(prefix=f"tamriel_benchmark_{sample_size}_") as folder:
         scratch_path = Path(folder) / "benchmark.sqlite3"
@@ -96,7 +98,7 @@ def run_sample(source_dump_id, source_name, sample_size, batch_size):
                     (f"benchmark:{source_name}:{sample_size}",),
                 )
                 copied = copy_evenly_spaced_pages(
-                    source_dump_id, sample_size, scratch_connection
+                    source_database_path, source_dump_id, sample_size, scratch_connection
                 )
             finally:
                 scratch_connection.close()
@@ -140,6 +142,7 @@ def main():
     if args.batch_size < 1 or any(size < 1 for size in args.sizes):
         parser.error("Sample sizes and batch size must be at least 1.")
 
+    source_database_path = database.DATABASE_PATH
     source_dump_id, source_name, available_pages = get_source_dump()
     print(f"Source dump: {source_name} (ID {source_dump_id})")
     print(f"Available pages: {available_pages:,}")
@@ -151,7 +154,7 @@ def main():
         if size > available_pages:
             print(f"\nSkipping {size:,}: only {available_pages:,} pages are available.")
             continue
-        run_sample(source_dump_id, source_name, size, args.batch_size)
+        run_sample(source_database_path, source_dump_id, source_name, size, args.batch_size)
 
 
 if __name__ == "__main__":
