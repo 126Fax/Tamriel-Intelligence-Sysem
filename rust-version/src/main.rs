@@ -20,6 +20,7 @@ enum Command {
         #[arg(long)] dump: Option<PathBuf>,
         #[arg(long)] db: Option<PathBuf>,
         #[arg(long,default_value_t=2500)] batch_size: usize,
+        #[arg(long)] limit: Option<usize>,
     },
     /// Rebuild Bottom-Up analysis tables for an imported dump.
     Analyse {
@@ -40,6 +41,7 @@ enum Command {
         #[arg(long)] output: Option<PathBuf>,
         #[arg(long,default_value_t=2500)] import_batch_size: usize,
         #[arg(long,default_value_t=32000)] analysis_batch_size: usize,
+        #[arg(long)] limit: Option<usize>,
         #[arg(long)] skip_import: bool,
     },
     /// Ask the Rust Top-Down prototype a question.
@@ -66,11 +68,12 @@ fn main() -> Result<()> {
             let _connection = database::connect(&path)?;
             println!("Rust database initialised: {}",path.display());
         }
-        Command::Import { dump,db,batch_size } => {
+        Command::Import { dump,db,batch_size,limit } => {
+            if skip_import && limit.is_some() { anyhow::bail!("--limit applies only when importing; it cannot be used with --skip-import."); }
             let dump_path = config::find_dump(dump)?;
             let db_path = db.unwrap_or_else(config::default_database);
             let started = Instant::now();
-            let (dump_id,inserted) = ingestion::import_dump(&dump_path,&db_path,batch_size)?;
+            let (dump_id,inserted) = ingestion::import_dump(&dump_path,&db_path,batch_size,limit)?;
             println!("Dump ID: {dump_id}\nNew pages inserted: {inserted:,}\nElapsed: {:.2}s",started.elapsed().as_secs_f64());
         }
         Command::Analyse { dump_id,db,batch_size } => {
@@ -87,7 +90,7 @@ fn main() -> Result<()> {
             let count = knowledge::export_knowledge_base(&db_path,dump_id,&output_path)?;
             println!("Exported {count:,} knowledge records to {}",output_path.display());
         }
-        Command::Run { dump,db,output,import_batch_size,analysis_batch_size,skip_import } => {
+        Command::Run { dump,db,output,import_batch_size,analysis_batch_size,limit,skip_import } => {
             if import_batch_size == 0 || analysis_batch_size == 0 {
                 anyhow::bail!("batch sizes must be at least 1");
             }
@@ -105,7 +108,7 @@ fn main() -> Result<()> {
             } else {
                 println!("1/3 Importing UESP XML...");
                 let started = Instant::now();
-                let (id,inserted) = ingestion::import_dump(&dump_path,&db_path,import_batch_size)?;
+                let (id,inserted) = ingestion::import_dump(&dump_path,&db_path,import_batch_size,limit)?;
                 dump_id = id;
                 println!("  Dump ID {dump_id}; {inserted:,} new pages; {:.2}s",started.elapsed().as_secs_f64());
             }
