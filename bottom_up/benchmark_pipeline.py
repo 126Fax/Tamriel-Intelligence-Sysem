@@ -114,6 +114,7 @@ def run_sample(source_database_path, source_dump_id, source_name, sample_size, b
             export_elapsed = perf_counter() - started
 
             print(f"\n===== SAMPLE: {copied:,} PAGES =====")
+            print(f"Sample database preparation and copy: {preparation_elapsed:.2f} seconds")
             print(f"Analysis total: {analysis_elapsed:.2f} seconds")
             for stage, elapsed in analysis["stage_timings"].items():
                 print(f"  {stage.replace('_', ' ').title()}: {elapsed:.2f} seconds")
