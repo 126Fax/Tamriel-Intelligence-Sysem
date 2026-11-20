@@ -320,6 +320,21 @@ mod tests {
     }
 
     #[test]
+    fn counts_simple_wikitext_structures() {
+        let page = PageText {
+            page_id: 7,
+            title: "Example".to_string(),
+            text: "== History ==\n{{Infobox|name=Example}}\n[[Skyrim|the north]]\n<ref>Source</ref>".to_string(),
+        };
+        let stats = count_wikitext_structures(&page);
+        assert_eq!(stats.template_count, 1);
+        assert_eq!(stats.template_parameter_count, 1);
+        assert_eq!(stats.wikilink_count, 1);
+        assert_eq!(stats.heading_count, 1);
+        assert_eq!(stats.tag_count, 2);
+    }
+
+    #[test]
     fn extracts_explicit_relationships() {
         let page = PageText {
             page_id: 42,
