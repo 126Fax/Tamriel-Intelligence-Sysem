@@ -45,9 +45,11 @@ pub fn count_wikitext_structures(page: &PageText) -> WikiStats {
     let links = Regex::new(r"(?s)\[\[.*?\]\]").unwrap();
     let headings = Regex::new(r"(?m)^={1,6}[^\r\n]*?={1,6}\s*$").unwrap();
     let tags = Regex::new(r"(?i)<[a-z][^>]*>").unwrap();
+    let template_matches: Vec<_> = templates.find_iter(&page.text).collect();
     WikiStats {
         page_id: page.page_id,
-        template_count: templates.find_iter(&page.text).count(),
+        template_count: template_matches.len(),
+        template_parameter_count: template_matches.iter().map(|item| item.as_str().matches('|').count()).sum(),
         wikilink_count: links.find_iter(&page.text).count(),
         heading_count: headings.find_iter(&page.text).count(),
         tag_count: tags.find_iter(&page.text).count(),
