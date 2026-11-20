@@ -29,3 +29,16 @@ jobs:
           python -m pip install -r requirements.txt
       - name: Run automated tests
         run: python -m unittest discover -s tests -p "test_*.py" -v
+
+  rust-experiment:
+    name: Rust experiment tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run Rust unit tests
+        run: cargo test --manifest-path rust-engine/Cargo.toml
+      - name: Build release executable
+        run: cargo build --release --manifest-path rust-engine/Cargo.toml
