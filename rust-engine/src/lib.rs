@@ -12,6 +12,20 @@ use quick_xml::Reader;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::io::BufRead;
+use std::sync::LazyLock;
+
+static TEMPLATE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)\{\{.*?\}\}").unwrap());
+static WIKILINK_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)\[\[.*?\]\]").unwrap());
+static HEADING_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^={1,6}[^\r\n]*?={1,6}\s*$").unwrap());
+static TAG_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)<[a-z][^>]*>").unwrap());
+static ENTITY_LINK_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[\[([^]|]+)(?:\|([^]]+))?\]\]").unwrap());
+static WHITESPACE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").unwrap());
+static ARTICLE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^(the|a|an)\s+").unwrap());
+static FACT_PATTERNS: LazyLock<Vec<(&'static str, Regex, f64)>> = LazyLock::new(|| vec![
+    ("province", Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+(?:a|an)\s+province\s+of\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(), 0.95),
+    ("lives in", Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+lives?\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(), 0.90),
+    ("located in", Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+located\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(), 0.90),
+]);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PageRecord {
@@ -42,18 +56,14 @@ pub struct WikiStats {
 /// Lightweight regex candidate for structural counts. Nested templates and
 /// complex tag syntax are known limitations; parity must be measured.
 pub fn count_wikitext_structures(page: &PageText) -> WikiStats {
-    let templates = Regex::new(r"(?s)\{\{.*?\}\}").unwrap();
-    let links = Regex::new(r"(?s)\[\[.*?\]\]").unwrap();
-    let headings = Regex::new(r"(?m)^={1,6}[^\r\n]*?={1,6}\s*$").unwrap();
-    let tags = Regex::new(r"(?i)<[a-z][^>]*>").unwrap();
-    let template_matches: Vec<_> = templates.find_iter(&page.text).collect();
+    let template_matches: Vec<_> = TEMPLATE_RE.find_iter(&page.text).collect();
     WikiStats {
         page_id: page.page_id,
         template_count: template_matches.len(),
         template_parameter_count: template_matches.iter().map(|item| item.as_str().matches('|').count()).sum(),
-        wikilink_count: links.find_iter(&page.text).count(),
-        heading_count: headings.find_iter(&page.text).count(),
-        tag_count: tags.find_iter(&page.text).count(),
+        wikilink_count: WIKILINK_RE.find_iter(&page.text).count(),
+        heading_count: HEADING_RE.find_iter(&page.text).count(),
+        tag_count: TAG_RE.find_iter(&page.text).count(),
     }
 }
 
@@ -217,45 +227,25 @@ fn split_sentences(text: &str) -> Vec<&str> {
 }
 
 fn clean_entity(value: &str) -> String {
-    let wiki_link = Regex::new(r"\[\[([^]|]+)(?:\|([^]]+))?\]\]").unwrap();
-    let whitespace = Regex::new(r"\s+").unwrap();
-    let article = Regex::new(r"(?i)^(the|a|an)\s+").unwrap();
-    let value = wiki_link.replace_all(value, |captures: &regex::Captures| {
+    let value = ENTITY_LINK_RE.replace_all(value, |captures: &regex::Captures| {
         captures.get(2).or_else(|| captures.get(1)).map(|m| m.as_str()).unwrap_or("").to_string()
     });
-    let value = whitespace.replace_all(&value, " ");
+    let value = WHITESPACE_RE.replace_all(&value, " ");
     let value = value.trim_matches(|c: char| {
         c.is_whitespace() || ".,:;!?()[]{}'\"".contains(c)
     });
-    article.replace(value, "").trim().to_string()
+    ARTICLE_RE.replace(value, "").trim().to_string()
 }
 
 /// Extract the same three explicit sentence relationships used by the
 /// current Python baseline. Province-catalogue matching remains Python-side.
 pub fn extract_candidate_facts(page: &PageText) -> Vec<CandidateFact> {
-    let patterns = [
-        (
-            "province",
-            Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+(?:a|an)\s+province\s+of\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(),
-            0.95,
-        ),
-        (
-            "lives in",
-            Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+lives?\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(),
-            0.90,
-        ),
-        (
-            "located in",
-            Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+located\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(),
-            0.90,
-        ),
-    ];
 
     let mut facts = Vec::new();
     for sentence in split_sentences(&page.text) {
-        let evidence = Regex::new(r"\s+").unwrap().replace_all(sentence, " ").trim().to_string();
+        let evidence = WHITESPACE_RE.replace_all(sentence, " ").trim().to_string();
         if evidence.is_empty() { continue; }
-        for (relationship, pattern, confidence) in &patterns {
+        for (relationship, pattern, confidence) in FACT_PATTERNS.iter() {
             for captures in pattern.captures_iter(&evidence) {
                 let subject = clean_entity(captures.name("subject").unwrap().as_str());
                 let object = clean_entity(captures.name("object").unwrap().as_str());
