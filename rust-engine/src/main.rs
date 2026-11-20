@@ -3,7 +3,7 @@ use serde::Deserialize;
 use std::env;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
-use tamriel_processing::{extract_candidate_facts, read_pages, PageText};
+use tamriel_processing::{extract_candidate_facts, for_each_page, PageText};
 
 #[derive(Deserialize)]
 struct InputPage {
