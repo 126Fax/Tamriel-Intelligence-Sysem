@@ -188,7 +188,9 @@ fn clean_entity(value: &str) -> String {
     let wiki_link = Regex::new(r"\[\[([^]|]+)(?:\|([^]]+))?\]\]").unwrap();
     let whitespace = Regex::new(r"\s+").unwrap();
     let article = Regex::new(r"(?i)^(the|a|an)\s+").unwrap();
-    let value = wiki_link.replace_all(value, |captures: &regex::Captures| {\n        captures.get(2).or_else(|| captures.get(1)).map(|m| m.as_str()).unwrap_or("").to_string()\n    });
+    let value = wiki_link.replace_all(value, |captures: &regex::Captures| {
+        captures.get(2).or_else(|| captures.get(1)).map(|m| m.as_str()).unwrap_or("").to_string()
+    });
     let value = whitespace.replace_all(&value, " ");
     let value = value.trim_matches(|c: char| {
         c.is_whitespace() || ".,:;!?()[]{}'\"".contains(c)
@@ -218,7 +220,7 @@ pub fn extract_candidate_facts(page: &PageText) -> Vec<CandidateFact> {
     ];
 
     let mut facts = Vec::new();
-    for sentence in Regex::new(r"(?<=[.!?])\s+|\n+").unwrap().split(&page.text) {
+    for sentence in split_sentences(&page.text) {
         let evidence = Regex::new(r"\s+").unwrap().replace_all(sentence, " ").trim().to_string();
         if evidence.is_empty() { continue; }
         for (relationship, pattern, confidence) in &patterns {
