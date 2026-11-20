@@ -33,6 +33,7 @@ pub struct PageText {
 pub struct WikiStats {
     pub page_id: i64,
     pub template_count: usize,
+    pub template_parameter_count: usize,
     pub wikilink_count: usize,
     pub heading_count: usize,
     pub tag_count: usize,
