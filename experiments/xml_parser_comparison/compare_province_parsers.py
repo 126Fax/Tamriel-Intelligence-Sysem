@@ -59,11 +59,12 @@ def page_data_from_xmlstream_content(content: str) -> dict[str, str] | None:
 
 def process_page(page_data: dict, facts: list[dict], digest) -> None:
     """Apply the same wiki parsing and fact extraction to either reader."""
-    digest.update(
-        json.dumps(
-            page_data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
-    )
+    encoded = json.dumps(
+        page_data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    digest.update(len(encoded).to_bytes(8, "big"))
+    digest.update(encoded)
+
     wikicode = mwparserfromhell.parse(page_data.get("text") or "")
     plain_text = wikicode.strip_code(normalize=True, collapse=True)
     facts.extend(
@@ -76,19 +77,31 @@ def process_page(page_data: dict, facts: list[dict], digest) -> None:
 
 
 def run_lxml(dump_path: Path) -> dict:
-    from src.ingestion.xml_reader import inter_page_data
+    from src.ingestion.xml_reader import extract_page_data, read_pages
 
     facts: list[dict] = []
     digest = hashlib.sha256()
     pages_processed = 0
+    pages_seen = 0
     started = time.perf_counter()
 
-    for page_data in inter_page_data(dump_path):
+    for page in read_pages(dump_path):
+        pages_seen += 1
+        page_data = extract_page_data(page)
+        if page_data is None:
+            continue
         process_page(page_data, facts, digest)
         pages_processed += 1
 
     elapsed = time.perf_counter() - started
-    return make_report("lxml", pages_processed, facts, digest.hexdigest(), elapsed, 0)
+    return make_report(
+        "lxml",
+        pages_processed,
+        facts,
+        digest.hexdigest(),
+        elapsed,
+        pages_seen - pages_processed,
+    )
 
 
 def run_xmlstream(
@@ -255,6 +268,10 @@ def print_comparison(lxml_report: dict, xmlstream_report: dict) -> None:
         f"{lxml_report['pages_processed'] == xmlstream_report['pages_processed']}"
     )
     print(
+        "Same pages without usable text: "
+        f"{lxml_report['pages_without_text'] == xmlstream_report['pages_without_text']}"
+    )
+    print(
         "Identical extracted page records: "
         f"{lxml_report['record_sha256'] == xmlstream_report['record_sha256']}"
     )
@@ -270,6 +287,7 @@ def print_comparison(lxml_report: dict, xmlstream_report: dict) -> None:
 
     if not (
         lxml_report["pages_processed"] == xmlstream_report["pages_processed"]
+        and lxml_report["pages_without_text"] == xmlstream_report["pages_without_text"]
         and lxml_report["record_sha256"] == xmlstream_report["record_sha256"]
         and same_provinces
     ):
