@@ -27,6 +27,7 @@ enum Command {
         #[arg(long)] dump_id: i64,
         #[arg(long)] db: Option<PathBuf>,
         #[arg(long,default_value_t=32000)] batch_size: usize,
+        #[arg(long)] limit: Option<usize>,
     },
     /// Export evidence-backed candidate facts to JSON.
     BuildKb {
@@ -75,10 +76,10 @@ fn main() -> Result<()> {
             let (dump_id,inserted) = ingestion::import_dump(&dump_path,&db_path,batch_size,limit)?;
             println!("Dump ID: {dump_id}\nNew pages inserted: {inserted}\nElapsed: {:.2}s",started.elapsed().as_secs_f64());
         }
-        Command::Analyse { dump_id,db,batch_size } => {
+        Command::Analyse { dump_id,db,batch_size,limit } => {
             let db_path = db.unwrap_or_else(config::default_database);
             let started = Instant::now();
-            let summary = analysis::analyse_dump_with_progress(&db_path,dump_id,batch_size, |stats, done, total, elapsed| {
+            let summary = analysis::analyse_dump_with_progress_and_limit(&db_path,dump_id,batch_size,limit, |stats, done, total, elapsed| {
                 let rate = if elapsed > 0.0 { done as f64 / elapsed } else { 0.0 };
                 println!("  Analysing: {done}/{total} pages ({:.1}%) | {:.0} pages/s | links: {} | parameters: {} | facts: {} | typed candidates: {}",
                     if total > 0 { done as f64 * 100.0 / total as f64 } else { 100.0 },
@@ -99,7 +100,6 @@ fn main() -> Result<()> {
             if import_batch_size == 0 || analysis_batch_size == 0 {
                 anyhow::bail!("batch sizes must be at least 1");
             }
-            if skip_import && limit.is_some() { anyhow::bail!("--limit applies only when importing; it cannot be used with --skip-import."); }
             let dump_path = config::find_dump(dump)?;
             let db_path = db.unwrap_or_else(config::default_database);
             let output_path = output.unwrap_or_else(config::default_knowledge_base);
@@ -124,7 +124,7 @@ fn main() -> Result<()> {
             }
             println!("2/3 Running Bottom-Up analysis...");
             let started = Instant::now();
-            let summary = analysis::analyse_dump_with_progress(&db_path,dump_id,analysis_batch_size, |stats, done, total, elapsed| {
+            let summary = analysis::analyse_dump_with_progress_and_limit(&db_path,dump_id,analysis_batch_size,limit, |stats, done, total, elapsed| {
                 let rate = if elapsed > 0.0 { done as f64 / elapsed } else { 0.0 };
                 println!("  Analysing: {done}/{total} pages ({:.1}%) | {:.0} pages/s | links: {} | parameters: {} | facts: {} | typed candidates: {}",
                     if total > 0 { done as f64 * 100.0 / total as f64 } else { 100.0 },
