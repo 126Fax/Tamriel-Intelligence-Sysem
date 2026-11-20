@@ -19,9 +19,10 @@ production Python pipeline or write to the production database.
 - Rust stable toolchain with Cargo.
 - The normal UESP dump configured in `config.paths`.
 
-Build once in release mode:
+Run the Rust unit tests, then build once in release mode:
 
 ```bash
+cargo test --manifest-path rust-engine/Cargo.toml
 cargo build --release --manifest-path rust-engine/Cargo.toml
 ```
 
