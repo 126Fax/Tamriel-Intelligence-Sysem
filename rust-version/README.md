@@ -91,6 +91,15 @@ If the dump is not in `data/raw/`, pass its path:
 cargo run --release --manifest-path rust-version/Cargo.toml -- run --dump data/raw/uespwiki-2026-11-01-current.xml.bz2
 ```
 
+
+For a safe first end-to-end test, import and analyse only the first 1,000 pages:
+
+\`\`\`bash
+cargo run --release --manifest-path rust-version/Cargo.toml -- run --limit 1000
+\`\`\`
+
+You can later run the same command without \`--limit\`; the importer skips pages already present and adds the remaining pages.
+
 Use an already imported dump in the Rust database:
 
 ```bash
