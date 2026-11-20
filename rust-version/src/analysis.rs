@@ -35,13 +35,13 @@ pub fn analyse_dump(database_path: &std::path::Path, dump_id: i64, batch_size: u
     let province_path = project_root().join("rust-version/data/reference/provinces.json");
     let provinces: Vec<String> = serde_json::from_slice(&std::fs::read(province_path)?)?;
     let mut summary = AnalysisSummary::default();
-    let mut offset = 0i64;
+    let mut last_page_id = 0i64;
 
     loop {
         let mut statement = read_connection.prepare(
-            "SELECT page_id,title,page_text FROM pages WHERE dump_id=? ORDER BY page_id LIMIT ? OFFSET ?"
+            "SELECT page_id,title,page_text FROM pages WHERE dump_id=? AND page_id>? ORDER BY page_id LIMIT ?"
         )?;
-        let rows = statement.query_map(params![dump_id,batch_size as i64,offset], |row| {
+        let rows = statement.query_map(params![dump_id,last_page_id,batch_size as i64], |row| {
             Ok((row.get::<_,i64>(0)?,row.get::<_,String>(1)?,row.get::<_,String>(2)?))
         })?;
         let mut pages = Vec::new();
@@ -123,7 +123,7 @@ pub fn analyse_dump(database_path: &std::path::Path, dump_id: i64, batch_size: u
             summary.candidate_facts_extracted += facts.len() as u64;
         }
         transaction.commit()?;
-        offset += pages.len() as i64;
+        last_page_id = pages.last().map(|page| page.0).unwrap_or(last_page_id);
     }
     Ok(summary)
 }
