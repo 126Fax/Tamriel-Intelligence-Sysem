@@ -25,7 +25,7 @@ from time import perf_counter
 
 import mwparserfromhell
 
-from bottom_up.full_pipeline import extract_candidate_facts
+from bottom_up.full_pipeline import extract_candidate_facts, extract_template_parameters
 from config.paths import get_xml_dump_path
 from src.ingestion.xml_reader import inter_page_data
 
@@ -219,9 +219,15 @@ def main() -> int:
                 parse_started = perf_counter()
                 wikicode = mwparserfromhell.parse(page["text"] or "")
                 python_wiki_parse_seconds += perf_counter() - parse_started
+                template_started = perf_counter()
+                template_parameters = extract_template_parameters(
+                    wikicode, int(page["page_id"]), page["title"]
+                )
+                python_template_extract_seconds += perf_counter() - template_started
                 python_wiki_rows.append({
                     "page_id": int(page["page_id"]),
                     "template_count": len(wikicode.filter_templates()),
+                    "template_parameter_count": len(template_parameters),
                     "wikilink_count": len(wikicode.filter_wikilinks()),
                     "heading_count": len(wikicode.filter_headings()),
                     "tag_count": len(wikicode.filter_tags()),
@@ -255,10 +261,11 @@ def main() -> int:
         rust_wiki.write_text(rust_wiki_result.stdout, encoding="utf-8")
         wiki_parity = compare_jsonl(
             python_wiki, rust_wiki,
-            ("page_id", "template_count", "wikilink_count", "heading_count", "tag_count"),
+            ("page_id", "template_count", "template_parameter_count", "wikilink_count", "heading_count", "tag_count"),
         )
         report["wiki_structure_counts"] = {
-            "python_elapsed_seconds": python_wiki_parse_seconds,
+            "python_parse_elapsed_seconds": python_wiki_parse_seconds,
+            "python_template_extraction_elapsed_seconds": python_template_extract_seconds,
             "rust_elapsed_seconds": rust_wiki_seconds,
             "pages_compared": fact_pages,
             "parity": wiki_parity,
