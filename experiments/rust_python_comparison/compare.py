@@ -198,20 +198,35 @@ def main() -> int:
 
         print("3/4 Python fact baseline and plain-text sample")
         fact_input = temp_dir / "fact_pages.jsonl"
+        wiki_input = temp_dir / "wiki_pages.jsonl"
+        python_wiki = temp_dir / "python_wiki_stats.jsonl"
+        rust_wiki = temp_dir / "rust_wiki_stats.jsonl"
+        python_wiki_rows = []
         python_facts = []
         fact_pages = 0
         python_wiki_parse_seconds = 0.0
         python_fact_seconds = 0.0
-        with python_xml.open(encoding="utf-8") as source, fact_input.open("w", encoding="utf-8") as target:
+        with python_xml.open(encoding="utf-8") as source, fact_input.open("w", encoding="utf-8") as target, wiki_input.open("w", encoding="utf-8") as wiki_target:
             for line in source:
                 if fact_pages >= args.fact_pages:
                     break
                 page = json.loads(line)
+                wiki_target.write(json.dumps({
+                    "page_id": int(page["page_id"]),
+                    "title": page["title"],
+                    "text": page["text"] or "",
+                }, ensure_ascii=False) + "\n")
                 parse_started = perf_counter()
-                plain_text = mwparserfromhell.parse(page["text"] or "").strip_code(
-                    normalize=True, collapse=True
-                )
+                wikicode = mwparserfromhell.parse(page["text"] or "")
                 python_wiki_parse_seconds += perf_counter() - parse_started
+                python_wiki_rows.append({
+                    "page_id": int(page["page_id"]),
+                    "template_count": len(wikicode.filter_templates()),
+                    "wikilink_count": len(wikicode.filter_wikilinks()),
+                    "heading_count": len(wikicode.filter_headings()),
+                    "tag_count": len(wikicode.filter_tags()),
+                })
+                plain_text = wikicode.strip_code(normalize=True, collapse=True)
                 page_text = {
                     "page_id": int(page["page_id"]),
                     "title": page["title"],
@@ -226,7 +241,29 @@ def main() -> int:
                 )
                 python_fact_seconds += perf_counter() - fact_started
                 fact_pages += 1
+        write_jsonl(python_wiki, python_wiki_rows)
         python_fact_keys = [fact_key(fact) for fact in python_facts]
+
+        wiki_started = perf_counter()
+        rust_wiki_result = subprocess.run(
+            [str(RUST_BINARY), "wiki", str(wiki_input)],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+        rust_wiki_seconds = perf_counter() - wiki_started
+        if rust_wiki_result.returncode != 0:
+            raise RuntimeError(f"Rust wikitext counter failed:\n{rust_wiki_result.stderr}")
+        rust_wiki.write_text(rust_wiki_result.stdout, encoding="utf-8")
+        wiki_parity = compare_jsonl(
+            python_wiki, rust_wiki,
+            ("page_id", "template_count", "wikilink_count", "heading_count", "tag_count"),
+        )
+        report["wiki_structure_counts"] = {
+            "python_elapsed_seconds": python_wiki_parse_seconds,
+            "rust_elapsed_seconds": rust_wiki_seconds,
+            "pages_compared": fact_pages,
+            "parity": wiki_parity,
+            "scope": "Rust uses a lightweight regex counter; nested templates and complex tag syntax are known limitations.",
+        }
 
         print("4/4 Rust fact extraction")
         started = perf_counter()
@@ -268,9 +305,10 @@ def main() -> int:
     report_path = REPORT_DIR / f"python_rust_comparison_{stamp}.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n",
                            encoding="utf-8")
+    print(f"Wiki structure-count parity: {wiki_parity['matches']} ({fact_pages:,} pages)")
     print(f"Fact parity: {fact_parity['matches']} ({fact_pages:,} pages)")
     print(f"Report: {report_path}")
-    return 0 if xml_parity["matches"] and fact_parity["matches"] else 1
+    return 0 if xml_parity["matches"] and wiki_parity["matches"] and fact_parity["matches"] else 1
 
 
 if __name__ == "__main__":
