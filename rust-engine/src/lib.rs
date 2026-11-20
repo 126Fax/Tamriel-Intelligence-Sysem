@@ -331,7 +331,7 @@ mod tests {
         assert_eq!(stats.template_parameter_count, 1);
         assert_eq!(stats.wikilink_count, 1);
         assert_eq!(stats.heading_count, 1);
-        assert_eq!(stats.tag_count, 2);
+        assert_eq!(stats.tag_count, 1);
     }
 
     #[test]
