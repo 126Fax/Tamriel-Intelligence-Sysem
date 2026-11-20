@@ -1,4 +1,4 @@
-use bzip2::read::BzDecoder;
+use bzip2::read::MultiBzDecoder;
 use serde::Deserialize;
 use std::env;
 use std::fs::File;
@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "xml" => {
             let limit = args.get(3).map(|value| value.parse::<usize>()).transpose()?;
             let file = File::open(&args[2])?;
-            let decoder = BzDecoder::new(file);
+            let decoder = MultiBzDecoder::new(file);
             let stdout = io::stdout();
             let mut output = io::BufWriter::new(stdout.lock());
             for_each_page(BufReader::new(decoder), limit, |page| {
