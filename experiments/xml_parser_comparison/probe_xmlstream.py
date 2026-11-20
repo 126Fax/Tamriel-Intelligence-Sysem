@@ -24,7 +24,7 @@ SAMPLE_XML = f"""<?xml version="1.0" encoding="UTF-8"?>
     <revision>
       <id>202</id>
       <text xml:space="preserve">A line with &amp; and &lt;markup&gt;.
-Second line with [[A link]] and {{template|value}}.</text>
+Second line with [[A link]] and {{{{template|value}}}}.</text>
     </revision>
   </page>
 </mediawiki>
