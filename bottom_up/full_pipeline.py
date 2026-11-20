@@ -6,6 +6,7 @@ relationships. It does not claim that every wiki link is a semantic fact.
 import json
 import re
 from pathlib import Path
+from time import perf_counter
 
 import mwparserfromhell
 
@@ -251,8 +252,15 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
 
     connection = database.get_connection()
     processed = links_found = facts_found = template_parameters_found = 0
+    timings = {"schema_setup": 0.0, "clear_previous_results": 0.0,
+               "province_catalogue": 0.0, "page_selection": 0.0,
+               "wiki_parsing": 0.0, "template_extraction_and_storage": 0.0,
+               "link_extraction_and_storage": 0.0,
+               "fact_extraction_and_storage": 0.0, "database_commits": 0.0}
     try:
+        stage_started = perf_counter()
         ensure_analysis_schema(connection)
+        timings["schema_setup"] += perf_counter() - stage_started
         dump = connection.execute(
             "SELECT dump_id FROM source_dumps WHERE dump_id = ?", (dump_id,)
         ).fetchone()
@@ -260,6 +268,7 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
             raise ValueError(f"Dump ID {dump_id} does not exist.")
 
         # A rerun rebuilds only derived analysis for this dump.
+        stage_started = perf_counter()
         connection.execute("DELETE FROM candidate_facts WHERE dump_id = ?", (dump_id,))
         connection.execute(
             "DELETE FROM page_template_parameters WHERE dump_id = ?", (dump_id,)
@@ -267,11 +276,15 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
         connection.execute("DELETE FROM page_links WHERE dump_id = ?", (dump_id,))
         connection.execute("DELETE FROM page_analysis WHERE dump_id = ?", (dump_id,))
         connection.commit()
+        timings["clear_previous_results"] += perf_counter() - stage_started
 
         # Load this small reference catalogue once, rather than once per page.
         from bottom_up.province_catalog import load_provinces
+        stage_started = perf_counter()
         provinces = load_provinces()
+        timings["province_catalogue"] += perf_counter() - stage_started
 
+        stage_started = perf_counter()
         cursor = connection.execute(
             """
             SELECT page_id, title, page_text
@@ -281,11 +294,13 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
             """,
             (dump_id,),
         )
+        timings["page_selection"] += perf_counter() - stage_started
         while True:
             rows = cursor.fetchmany(batch_size)
             if not rows:
                 break
             for page in rows:
+                stage_started = perf_counter()
                 wikicode = mwparserfromhell.parse(page["page_text"] or "")
                 templates = wikicode.filter_templates()
                 links = wikicode.filter_wikilinks()
@@ -294,6 +309,8 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
                 plain_text = wikicode.strip_code(
                     normalize=True, collapse=True
                 )
+                timings["wiki_parsing"] += perf_counter() - stage_started
+                stage_started = perf_counter()
                 connection.execute(
                     """
                     INSERT INTO page_analysis
@@ -326,7 +343,9 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
                         ),
                     )
                     template_parameters_found += 1
+                timings["template_extraction_and_storage"] += perf_counter() - stage_started
 
+                stage_started = perf_counter()
                 for link in links:
                     destination = str(link.title).strip()
                     display = (
@@ -343,7 +362,9 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
                          destination, display),
                     )
                     links_found += 1
+                timings["link_extraction_and_storage"] += perf_counter() - stage_started
 
+                stage_started = perf_counter()
                 for fact in extract_candidate_facts(
                     plain_text, page["page_id"], page["title"], provinces
                 ):
@@ -361,9 +382,12 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
                          fact["confidence"]),
                     )
                     facts_found += 1
+                timings["fact_extraction_and_storage"] += perf_counter() - stage_started
                 processed += 1
 
+            stage_started = perf_counter()
             connection.commit()
+            timings["database_commits"] += perf_counter() - stage_started
             if progress_callback is not None:
                 progress_callback(processed, links_found, facts_found)
 
@@ -372,6 +396,7 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
             "wiki_links_extracted": links_found,
             "candidate_facts_extracted": facts_found,
             "template_parameters_extracted": template_parameters_found,
+            "stage_timings": timings,
         }
     finally:
         connection.close()
