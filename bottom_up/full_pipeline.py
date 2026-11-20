@@ -14,7 +14,7 @@ from src.database import database
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_KNOWLEDGE_BASE_PATH = PROJECT_ROOT / "knowledge_base.json"
-DEFAULT_BATCH_SIZE = 250
+DEFAULT_BATCH_SIZE = 32000
 
 # Explicit sentence patterns only: every result retains the original sentence.
 FACT_PATTERNS = (
