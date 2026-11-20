@@ -7,3 +7,4 @@ pub mod knowledge;
 pub mod models;
 pub mod top_down;
 pub mod wiki;
+pub mod external;
