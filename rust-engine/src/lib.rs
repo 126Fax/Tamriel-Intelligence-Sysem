@@ -151,6 +151,15 @@ where
                     leaf_text.push_str(&unescaped);
                 }
             }
+            Ok(Event::GeneralRef(event)) => {
+                if leaf.is_some() {
+                    let reference = event.decode().map_err(|e| e.to_string())?;
+                    let encoded = format!("&{reference};");
+                    let decoded = quick_xml::escape::unescape(&encoded)
+                        .map_err(|e| e.to_string())?;
+                    leaf_text.push_str(&decoded);
+                }
+            }
             Ok(Event::CData(event)) => {
                 if leaf.is_some() {
                     leaf_text.push_str(&event.decode().map_err(|e| e.to_string())?);
