@@ -28,14 +28,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let limit = args.get(3).map(|value| value.parse::<usize>()).transpose()?;
             let file = File::open(&args[2])?;
             let decoder = BzDecoder::new(file);
-            let pages = read_pages(BufReader::new(decoder), limit)
-                .map_err(io::Error::other)?;
             let stdout = io::stdout();
             let mut output = io::BufWriter::new(stdout.lock());
-            for page in pages {
-                serde_json::to_writer(&mut output, &page)?;
-                output.write_all(b"\n")?;
-            }
+            for_each_page(BufReader::new(decoder), limit, |page| {
+                serde_json::to_writer(&mut output, &page).map_err(|error| error.to_string())?;
+                output.write_all(b"\\n").map_err(|error| error.to_string())?;
+                Ok(())
+            }).map_err(io::Error::other)?;
             output.flush()?;
         }
         "facts" => {
