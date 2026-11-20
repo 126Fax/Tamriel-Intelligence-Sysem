@@ -176,12 +176,18 @@ def extract_template_parameters(wikicode, source_page_id, source_title):
     return parameters
 
 
-def extract_candidate_facts(plain_text, source_page_id, source_title):
-    """Extract explicit relations plus targeted evidence for known provinces."""
-    from bottom_up.province_catalog import load_provinces
+def extract_candidate_facts(plain_text, source_page_id, source_title,
+                            provinces=None):
+    """Extract explicit relations plus targeted evidence for known provinces.
+
+    Pass a preloaded province catalogue when processing many pages so the
+    catalogue is read once per analysis run, not once per page.
+    """
+    if provinces is None:
+        from bottom_up.province_catalog import load_provinces
+        provinces = load_provinces()
 
     facts = []
-    provinces = load_provinces()
     for sentence in re.split(r"(?<=[.!?])\s+|\n+", plain_text):
         sentence = re.sub(r"\s+", " ", sentence).strip()
         if not sentence:
@@ -262,6 +268,10 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
         connection.execute("DELETE FROM page_analysis WHERE dump_id = ?", (dump_id,))
         connection.commit()
 
+        # Load this small reference catalogue once, rather than once per page.
+        from bottom_up.province_catalog import load_provinces
+        provinces = load_provinces()
+
         cursor = connection.execute(
             """
             SELECT page_id, title, page_text
@@ -335,7 +345,7 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
                     links_found += 1
 
                 for fact in extract_candidate_facts(
-                    plain_text, page["page_id"], page["title"]
+                    plain_text, page["page_id"], page["title"], provinces
                 ):
                     connection.execute(
                         """
