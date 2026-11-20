@@ -5,7 +5,7 @@ use tamriel_intelligence::{database, top_down, wiki};
 fn extracts_nested_template_parameters_and_wikilinks() {
     let source = "{{Character Summary|race=Nord|occupation=Scholar|notes={{Small|text=Researcher}}}}\n[[Skyrim|the north]]";
     let result = wiki::analyse_wikitext(12,"Example",source);
-    assert_eq!(result.template_count,1);
+    assert_eq!(result.template_count,2);
     assert_eq!(result.link_count,1);
     assert!(result.parameters.iter().any(|p| p.parameter_name=="race" && p.value=="Nord"));
     assert!(result.parameters.iter().any(|p| p.parameter_name=="occupation" && p.value=="Scholar"));
