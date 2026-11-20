@@ -32,8 +32,8 @@ def main():
                         help="SQLite import and analysis batch size (default: 2500).")
     parser.add_argument("--skip-import", action="store_true",
                         help="Use pages already imported into SQLite.")
-    parser.add_argument("--analysis-batch-size", type=int, default=250,
-                        help="Number of pages analysed per batch (default: 250).")
+    parser.add_argument("--analysis-batch-size", type=int, default=DEFAULT_BATCH_SIZE,
+                        help=f"Number of pages analysed per batch (default: {DEFAULT_BATCH_SIZE:,}).")
     args = parser.parse_args()
 
     if args.batch_size < 1 or args.analysis_batch_size < 1:
