@@ -253,7 +253,7 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
     connection = database.get_connection()
     processed = links_found = facts_found = template_parameters_found = 0
     timings = {"schema_setup": 0.0, "clear_previous_results": 0.0,
-               "province_catalogue": 0.0, "page_selection": 0.0,
+               "province_catalogue": 0.0, "page_selection": 0.0, "page_fetch": 0.0,
                "wiki_parsing": 0.0, "template_extraction_and_storage": 0.0,
                "link_extraction_and_storage": 0.0,
                "fact_extraction_and_storage": 0.0, "database_commits": 0.0}
@@ -296,7 +296,9 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
         )
         timings["page_selection"] += perf_counter() - stage_started
         while True:
+            stage_started = perf_counter()
             rows = cursor.fetchmany(batch_size)
+            timings["page_fetch"] += perf_counter() - stage_started
             if not rows:
                 break
             for page in rows:
