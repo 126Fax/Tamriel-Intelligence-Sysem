@@ -100,6 +100,23 @@ cargo run --release --manifest-path rust-version/Cargo.toml -- run --limit 1000
 
 You can later run the same command without `--limit`; the importer skips pages already present and adds the remaining pages.
 
+Batch sizes can be controlled independently. Import batches control SQLite insert transactions;
+analysis batches control how many stored pages are fetched for each analysis batch:
+
+```bash
+# 50,000-page run, using batches of 250 for both stages
+cargo run --release --manifest-path rust-version/Cargo.toml -- run --limit 50000 --import-batch-size 250 --analysis-batch-size 250
+
+# Re-run analysis on the already imported 50,000 pages with a different analysis batch size
+cargo run --release --manifest-path rust-version/Cargo.toml -- run --skip-import --analysis-batch-size 1000
+```
+
+For a fair analysis-batch comparison, import the sample once, then use `--skip-import`
+and change only `--analysis-batch-size` between runs. Each analysis run rebuilds the
+derived analysis tables, so compare elapsed analysis time and output counts. Import
+batch-size comparisons require a fresh, separate database for each run because pages
+already imported are skipped as duplicates.
+
 Use an already imported dump in the Rust database:
 
 ```bash
