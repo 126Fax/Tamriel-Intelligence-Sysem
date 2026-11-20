@@ -69,28 +69,51 @@ fn split_top_level(input: &str, separator: char) -> Vec<&str> {
 
 // Finds outer template blocks while accounting for nested {{...}} pairs.
 fn template_blocks(text: &str) -> Vec<&str> {
-    let mut blocks = Vec::new();
+    let mut blocks: Vec<(usize, &str)> = Vec::new();
     let bytes = text.as_bytes();
+    let mut stack: Vec<usize> = Vec::new();
     let mut i = 0usize;
     while i + 1 < bytes.len() {
         if bytes[i] == b'{' && bytes[i+1] == b'{' {
-            let start = i;
-            let mut depth = 1usize;
+            stack.push(i);
             i += 2;
-            while i + 1 < bytes.len() && depth > 0 {
-                if bytes[i] == b'{' && bytes[i+1] == b'{' { depth += 1; i += 2; }
-                else if bytes[i] == b'}' && bytes[i+1] == b'}' { depth -= 1; i += 2; }
-                else { i += 1; }
+        } else if bytes[i] == b'}' && bytes[i+1] == b'}' {
+            if let Some(start) = stack.pop() {
+                blocks.push((start, &text[start..i+2]));
             }
-            if depth == 0 { blocks.push(&text[start..i]); }
-        } else { i += 1; }
+            i += 2;
+        } else {
+            i += 1;
+        }
     }
-    blocks
+    blocks.sort_by_key(|(start, _)| *start);
+    blocks.into_iter().map(|(_, block)| block).collect()
+}
+
+fn remove_templates(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut output = String::new();
+    let mut depth = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if i + 1 < bytes.len() && bytes[i] == b'{' && bytes[i+1] == b'{' {
+            depth += 1;
+            i += 2;
+        } else if i + 1 < bytes.len() && bytes[i] == b'}' && bytes[i+1] == b'}' && depth > 0 {
+            depth -= 1;
+            i += 2;
+        } else {
+            let character = text[i..].chars().next().unwrap();
+            if depth == 0 { output.push(character); }
+            i += character.len_utf8();
+        }
+    }
+    output
 }
 
 fn strip_markup(text: &str) -> String {
     let without_comments = Regex::new(r"(?s)<!--.*?-->").unwrap().replace_all(text, " ");
-    let without_templates = TEMPLATE_RE.replace_all(&without_comments, " ");
+    let without_templates = remove_templates(&without_comments);
     let links = LINK_RE.replace_all(&without_templates, |captures: &regex::Captures| {
         captures.get(2).or_else(|| captures.get(1)).map(|m| m.as_str()).unwrap_or("").to_string()
     });
