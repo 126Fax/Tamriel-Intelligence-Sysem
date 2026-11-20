@@ -69,7 +69,6 @@ fn main() -> Result<()> {
             println!("Rust database initialised: {}",path.display());
         }
         Command::Import { dump,db,batch_size,limit } => {
-            if skip_import && limit.is_some() { anyhow::bail!("--limit applies only when importing; it cannot be used with --skip-import."); }
             let dump_path = config::find_dump(dump)?;
             let db_path = db.unwrap_or_else(config::default_database);
             let started = Instant::now();
@@ -94,6 +93,7 @@ fn main() -> Result<()> {
             if import_batch_size == 0 || analysis_batch_size == 0 {
                 anyhow::bail!("batch sizes must be at least 1");
             }
+            if skip_import && limit.is_some() { anyhow::bail!("--limit applies only when importing; it cannot be used with --skip-import."); }
             let dump_path = config::find_dump(dump)?;
             let db_path = db.unwrap_or_else(config::default_database);
             let output_path = output.unwrap_or_else(config::default_knowledge_base);
