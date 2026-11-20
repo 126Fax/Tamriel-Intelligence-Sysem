@@ -9,6 +9,7 @@ pub struct AnalysisSummary {
     pub wiki_links_extracted: u64,
     pub candidate_facts_extracted: u64,
     pub template_parameters_extracted: u64,
+    pub entity_candidates_extracted: u64,
 }
 
 pub fn analyse_dump(database_path: &std::path::Path, dump_id: i64, batch_size: usize) -> Result<AnalysisSummary> {
@@ -23,10 +24,14 @@ pub fn analyse_dump(database_path: &std::path::Path, dump_id: i64, batch_size: u
 
     // Derived tables are rebuilt, while imported source pages are retained.
     write_connection.execute("DELETE FROM candidate_facts WHERE dump_id=?", [dump_id])?;
+    write_connection.execute("DELETE FROM entity_candidates WHERE dump_id=?", [dump_id])?;
     write_connection.execute("DELETE FROM page_template_parameters WHERE dump_id=?", [dump_id])?;
     write_connection.execute("DELETE FROM page_links WHERE dump_id=?", [dump_id])?;
     write_connection.execute("DELETE FROM page_analysis WHERE dump_id=?", [dump_id])?;
 
+    let source_name: String = write_connection.query_row(
+        "SELECT source_name FROM source_dumps WHERE dump_id=?", [dump_id], |row| row.get(0)
+    )?;
     let province_path = project_root().join("rust-version/data/reference/provinces.json");
     let provinces: Vec<String> = serde_json::from_slice(&std::fs::read(province_path)?)?;
     let mut summary = AnalysisSummary::default();
@@ -61,6 +66,39 @@ pub fn analyse_dump(database_path: &std::path::Path, dump_id: i64, batch_size: u
                         parameter.parameter_index,parameter.parameter_name,parameter.is_named as i64,
                         parameter.value,parameter.raw_value,parameter.evidence,"template_parameter_rust_v1"]
                 )?;
+            }
+            // Promote only explicit, recognised template fields into typed candidates.
+            for parameter in &wiki.parameters {
+                let field = parameter.parameter_name.to_lowercase().replace(' ', "_");
+                let entity_type = match field.as_str() {
+                    "race" | "species" => Some("race"),
+                    "occupation" | "profession" | "job" | "role" => Some("occupation"),
+                    "book" | "books" | "book_title" | "book_titles" | "book_name" | "associated_book" | "associated_books" => Some("book"),
+                    _ => None,
+                };
+                if let Some(entity_type) = entity_type {
+                    transaction.execute(
+                        "INSERT INTO entity_candidates
+                         (dump_id,source_page_id,source_title,entity_type,value,evidence_text,
+                          extraction_method,source_type,source_id)
+                         VALUES(?,?,?,?,?,?,?,?,?)",
+                        params![dump_id,page_id,title,entity_type,parameter.value,parameter.evidence,
+                            "explicit_template_field_rust_v1","uesp",source_name]
+                    )?;
+                    summary.entity_candidates_extracted += 1;
+                }
+                if parameter.template_name.to_lowercase().contains("book") {
+                    transaction.execute(
+                        "INSERT INTO entity_candidates
+                         (dump_id,source_page_id,source_title,entity_type,value,evidence_text,
+                          extraction_method,source_type,source_id)
+                         VALUES(?,?,?,?,?,?,?,?,?)",
+                        params![dump_id,page_id,title,"book",title,parameter.evidence,
+                            "book_template_page_title_rust_v1","uesp",source_name]
+                    )?;
+                    summary.entity_candidates_extracted += 1;
+                    break;
+                }
             }
             for link in &wiki.links {
                 transaction.execute(
