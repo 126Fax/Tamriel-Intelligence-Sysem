@@ -1,7 +1,7 @@
 """Compare the repository's lxml reader with the experimental xmlstream reader.
 
 Both readers process the same compressed MediaWiki dump and feed page text into
-the same Bottom-Up fact extractor. Each parser runs in a separate subprocess so
+the same Bottom-Up fact extractor. Each reader runs in a separate subprocess so
 peak RSS measurements are independent. No database or knowledge-base files are
 written.
 """
@@ -22,7 +22,7 @@ from pathlib import Path
 import mwparserfromhell
 
 from bottom_up.full_pipeline import extract_candidate_facts
-from bottom_up.province_catalog import audit_discovered_provinces
+from bottom_up.province_catalog import audit_discovered_provinces, load_provinces
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DUMP = PROJECT_ROOT / "data" / "raw" / "uespwiki-2026-11-01-current.xml.bz2"
@@ -31,12 +31,7 @@ NS = f"{{{MEDIAWIKI_NS}}}"
 
 
 def page_data_from_xmlstream_content(content: str) -> dict[str, str] | None:
-    """Decode one page callback using the standard-library XML parser.
-
-    xmlstream currently returns the contents inside <page>, rather than
-    structured child elements. ElementTree decodes that one page fragment;
-    lxml is deliberately not used in the candidate path.
-    """
+    """Decode one xmlstream page callback with Python's standard XML parser."""
     wrapped = f'<page xmlns="{MEDIAWIKI_NS}">{content}</page>'
     page = ET.fromstring(wrapped)
     revisions = page.findall(f"{NS}revision")
@@ -57,7 +52,7 @@ def page_data_from_xmlstream_content(content: str) -> dict[str, str] | None:
     }
 
 
-def process_page(page_data: dict, facts: list[dict], digest) -> None:
+def process_page(page_data: dict, facts: list[dict], digest, provinces: list[str]) -> None:
     """Apply the same wiki parsing and fact extraction to either reader."""
     encoded = json.dumps(
         page_data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -72,6 +67,7 @@ def process_page(page_data: dict, facts: list[dict], digest) -> None:
             plain_text,
             page_data["page_id"],
             page_data["title"],
+            provinces=provinces,
         )
     )
 
@@ -81,8 +77,8 @@ def run_lxml(dump_path: Path) -> dict:
 
     facts: list[dict] = []
     digest = hashlib.sha256()
-    pages_processed = 0
-    pages_seen = 0
+    provinces = load_provinces()
+    pages_processed = pages_seen = 0
     started = time.perf_counter()
 
     for page in read_pages(dump_path):
@@ -90,29 +86,23 @@ def run_lxml(dump_path: Path) -> dict:
         page_data = extract_page_data(page)
         if page_data is None:
             continue
-        process_page(page_data, facts, digest)
+        process_page(page_data, facts, digest, provinces)
         pages_processed += 1
 
     elapsed = time.perf_counter() - started
     return make_report(
-        "lxml",
-        pages_processed,
-        facts,
-        digest.hexdigest(),
-        elapsed,
+        "lxml", pages_processed, facts, digest.hexdigest(), elapsed,
         pages_seen - pages_processed,
     )
 
 
-def run_xmlstream(
-    dump_path: Path, chunk_size: int, max_buffer_size: int
-) -> dict:
+def run_xmlstream(dump_path: Path, chunk_size: int, max_buffer_size: int) -> dict:
     from xmlstream import StreamingXMLParser, TagBehavior, TagConfig
 
     facts: list[dict] = []
     digest = hashlib.sha256()
-    pages_seen = 0
-    pages_processed = 0
+    provinces = load_provinces()
+    pages_seen = pages_processed = 0
 
     def on_page_complete(tag_name: str, content: str) -> None:
         nonlocal pages_seen, pages_processed
@@ -120,7 +110,7 @@ def run_xmlstream(
         page_data = page_data_from_xmlstream_content(content)
         if page_data is None:
             return
-        process_page(page_data, facts, digest)
+        process_page(page_data, facts, digest, provinces)
         pages_processed += 1
 
     config = TagConfig(
@@ -136,38 +126,27 @@ def run_xmlstream(
             chunk = source.read(chunk_size)
             if not chunk:
                 break
-            # Consume all events; the page callback performs the work.
             for _event in parser.process_chunk(chunk):
                 pass
 
     elapsed = time.perf_counter() - started
     return make_report(
-        "xmlstream",
-        pages_processed,
-        facts,
-        digest.hexdigest(),
-        elapsed,
+        "xmlstream", pages_processed, facts, digest.hexdigest(), elapsed,
         pages_seen - pages_processed,
     )
 
 
 def make_report(
-    parser_name: str,
-    pages_processed: int,
-    facts: list[dict],
-    digest: str,
-    elapsed: float,
-    pages_without_text: int,
+    parser_name: str, pages_processed: int, facts: list[dict], digest: str,
+    elapsed: float, pages_without_text: int,
 ) -> dict:
     audit = audit_discovered_provinces(facts)
     evidence_counts = {
         name: len(records) for name, records in audit["discovered"].items()
     }
-    province_evidence_total = sum(evidence_counts.values())
 
     try:
         import resource
-
         peak_rss_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
     except (ImportError, AttributeError):
         peak_rss_mb = None
@@ -179,7 +158,7 @@ def make_report(
         "record_sha256": digest,
         "expected_provinces": audit["expected_count"],
         "discovered_provinces": audit["discovered_count"],
-        "province_evidence_records": province_evidence_total,
+        "province_evidence_records": sum(evidence_counts.values()),
         "province_evidence_by_name": evidence_counts,
         "missing_provinces": audit["missing"],
         "unexpected_candidates": [
@@ -202,12 +181,11 @@ def worker(args) -> int:
     if not dump_path.is_file():
         raise FileNotFoundError(f"XML dump not found: {dump_path}")
 
-    if args.parser == "lxml":
+    if args.worker == "lxml":
         report = run_lxml(dump_path)
     else:
         report = run_xmlstream(
-            dump_path,
-            chunk_size=args.chunk_size,
+            dump_path, chunk_size=args.chunk_size,
             max_buffer_size=args.max_buffer_size,
         )
 
@@ -229,12 +207,7 @@ def run_isolated_worker(args, parser_name: str) -> dict:
         "--max-buffer-size",
         str(args.max_buffer_size),
     ]
-    completed = subprocess.run(
-        command,
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-    )
+    completed = subprocess.run(command, cwd=PROJECT_ROOT, capture_output=True, text=True)
     if completed.returncode != 0:
         raise RuntimeError(
             f"{parser_name} worker failed (exit {completed.returncode}).\n"
@@ -262,38 +235,29 @@ def print_comparison(lxml_report: dict, xmlstream_report: dict) -> None:
         print(f"Peak RSS: {report['peak_rss_mb']} MB")
         print(f"Page-record SHA-256: {report['record_sha256']}")
 
-    print("\n===== MATCH CHECKS =====")
-    print(
-        "Same processed page count: "
-        f"{lxml_report['pages_processed'] == xmlstream_report['pages_processed']}"
-    )
-    print(
-        "Same pages without usable text: "
-        f"{lxml_report['pages_without_text'] == xmlstream_report['pages_without_text']}"
-    )
-    print(
-        "Identical extracted page records: "
-        f"{lxml_report['record_sha256'] == xmlstream_report['record_sha256']}"
-    )
+    same_count = lxml_report["pages_processed"] == xmlstream_report["pages_processed"]
+    same_empty = lxml_report["pages_without_text"] == xmlstream_report["pages_without_text"]
+    same_records = lxml_report["record_sha256"] == xmlstream_report["record_sha256"]
     same_provinces = (
         lxml_report["province_evidence_by_name"]
         == xmlstream_report["province_evidence_by_name"]
     )
-    print(f"Same province evidence counts: {same_provinces}")
-    print(
-        "Same unexpected candidates: "
-        f"{lxml_report['unexpected_candidates'] == xmlstream_report['unexpected_candidates']}"
+    same_unexpected = (
+        lxml_report["unexpected_candidates"]
+        == xmlstream_report["unexpected_candidates"]
     )
 
-    if not (
-        lxml_report["pages_processed"] == xmlstream_report["pages_processed"]
-        and lxml_report["pages_without_text"] == xmlstream_report["pages_without_text"]
-        and lxml_report["record_sha256"] == xmlstream_report["record_sha256"]
-        and same_provinces
-    ):
-        print("\nRESULT: The parsers do not yet produce equivalent results.")
-    else:
+    print("\n===== MATCH CHECKS =====")
+    print(f"Same processed page count: {same_count}")
+    print(f"Same pages without usable text: {same_empty}")
+    print(f"Identical extracted page records: {same_records}")
+    print(f"Same province evidence counts: {same_provinces}")
+    print(f"Same unexpected candidates: {same_unexpected}")
+
+    if all((same_count, same_empty, same_records, same_provinces, same_unexpected)):
         print("\nRESULT: Both parsers produced matching page records and province results.")
+    else:
+        print("\nRESULT: The parsers do not yet produce equivalent results.")
 
 
 def main() -> int:
