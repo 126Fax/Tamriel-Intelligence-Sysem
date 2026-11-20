@@ -2,6 +2,7 @@ use anyhow::Result;
 use rusqlite::{params, Connection};
 use crate::wiki::analyse_wikitext;
 use crate::config::project_root;
+use std::time::Instant;
 
 #[derive(Debug, Default, Clone)]
 pub struct AnalysisSummary {
@@ -13,6 +14,20 @@ pub struct AnalysisSummary {
 }
 
 pub fn analyse_dump(database_path: &std::path::Path, dump_id: i64, batch_size: usize) -> Result<AnalysisSummary> {
+    analyse_dump_with_progress(database_path, dump_id, batch_size, |_, _, _, _| {})
+}
+
+/// Rebuild analysis tables and report live progress as pages are processed.
+/// The callback receives (summary, pages_processed, total_pages, elapsed_seconds).
+pub fn analyse_dump_with_progress<F>(
+    database_path: &std::path::Path,
+    dump_id: i64,
+    batch_size: usize,
+    mut progress: F,
+) -> Result<AnalysisSummary>
+where
+    F: FnMut(&AnalysisSummary, u64, u64, f64),
+{
     if batch_size == 0 { anyhow::bail!("analysis batch size must be at least 1"); }
     let read_connection = Connection::open(database_path)?;
     let mut write_connection = Connection::open(database_path)?;
@@ -32,6 +47,11 @@ pub fn analyse_dump(database_path: &std::path::Path, dump_id: i64, batch_size: u
     let source_name: String = write_connection.query_row(
         "SELECT source_name FROM source_dumps WHERE dump_id=?", [dump_id], |row| row.get(0)
     )?;
+    let total_pages: u64 = read_connection.query_row(
+        "SELECT COUNT(*) FROM pages WHERE dump_id=?", [dump_id], |row| row.get::<_, i64>(0)
+    )? as u64;
+    let started = Instant::now();
+    let progress_interval = (total_pages / 100).max(1).min(500);
     let province_path = project_root().join("rust-version/data/reference/provinces.json");
     let provinces: Vec<String> = serde_json::from_slice(&std::fs::read(province_path)?)?;
     let mut summary = AnalysisSummary::default();
@@ -121,9 +141,16 @@ pub fn analyse_dump(database_path: &std::path::Path, dump_id: i64, batch_size: u
             summary.wiki_links_extracted += wiki.links.len() as u64;
             summary.template_parameters_extracted += wiki.parameters.len() as u64;
             summary.candidate_facts_extracted += facts.len() as u64;
+
+            if summary.pages_analysed % progress_interval == 0 || summary.pages_analysed == total_pages {
+                progress(&summary, summary.pages_analysed, total_pages, started.elapsed().as_secs_f64());
+            }
         }
         transaction.commit()?;
         last_page_id = pages.last().map(|page| page.0).unwrap_or(last_page_id);
+    }
+    if summary.pages_analysed == 0 {
+        progress(&summary, 0, total_pages, started.elapsed().as_secs_f64());
     }
     Ok(summary)
 }
