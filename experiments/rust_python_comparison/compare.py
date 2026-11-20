@@ -88,10 +88,16 @@ def fact_key(fact: dict) -> tuple:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Benchmark Python against the Rust prototype.")
     parser.add_argument("--limit", type=int, default=10000,
-                        help="Maximum number of pages to compare; omit --limit for the full dump.")
+                        help="Maximum number of pages to compare (default: 10000).")
+    parser.add_argument("--full", action="store_true",
+                        help="Compare the entire dump instead of the default 10000-page sample.")
     parser.add_argument("--fact-pages", type=int, default=1000,
                         help="Number of initial pages used for fact-extraction parity.")
     args = parser.parse_args()
+    if args.full and args.limit != 10000:
+        parser.error("Use either --full or --limit, not both.")
+    if args.full:
+        args.limit = None
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be positive.")
     if args.fact_pages < 1:
