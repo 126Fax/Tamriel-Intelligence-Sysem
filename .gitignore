@@ -226,6 +226,7 @@ __marimo__/
 data/database/*.db
 data/database/*.db-journal
 data/processed/
+data/performance/
 data/cleaner/
 
 # Original UESP XML dumps
