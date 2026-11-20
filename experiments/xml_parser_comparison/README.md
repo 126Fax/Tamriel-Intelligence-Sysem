@@ -25,11 +25,14 @@ experiment only.
 From the repository root, install the candidate package separately:
 
 ```bash
-python -m pip install xmlstream
+python -m pip install -r experiments/xml_parser_comparison/requirements.txt
 ```
 
-The package's PyPI distribution is named `streaming-xml-parser`, while its
-documented installation/import name is `xmlstream`.
+The PyPI distribution is pinned as `streaming-xml-parser==1.0.0`; the
+documented Python import name is `xmlstream`. The package page's own quick
+start uses `pip install xmlstream`, so this experiment records the actual
+distribution name shown on the PyPI release page rather than relying on that
+inconsistent install snippet.
 
 ## Run the compatibility probe
 
