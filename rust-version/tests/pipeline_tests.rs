@@ -47,3 +47,25 @@ fn knowledge_export_does_not_target_python_default_file() {
     let default_output = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/knowledge_base.json");
     assert!(default_output.starts_with(env!("CARGO_MANIFEST_DIR")));
 }
+
+#[test]
+fn user_and_mod_observations_are_stored_with_distinct_provenance() {
+    let temporary = tempfile::tempdir().unwrap();
+    let db = temporary.path().join("observations.db");
+    let input = temporary.path().join("observations.json");
+    std::fs::write(&input, r#"[
+      {"entity_type":"race","subject":"Test Character","value":"Nord","source_type":"user","source_id":"submission-1"},
+      {"entity_type":"occupation","subject":"Test Character","value":"Scholar","source_type":"mod","source_id":"import-1","mod_id":"sample-mod"}
+    ]"#).unwrap();
+    let inserted = tamriel_intelligence::external::import_observations(&input,&db).unwrap();
+    assert_eq!(inserted,2);
+    let connection = database::connect(&db).unwrap();
+    let users: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM external_observations WHERE source_type='user'",[],|row| row.get(0)
+    ).unwrap();
+    let mods: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM external_observations WHERE source_type='mod' AND mod_id='sample-mod'",[],|row| row.get(0)
+    ).unwrap();
+    assert_eq!(users,1);
+    assert_eq!(mods,1);
+}
