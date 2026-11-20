@@ -11,6 +11,15 @@ from src.ingestion.importer import import_dump
 from bottom_up.full_pipeline import analyse_dump, build_knowledge_base
 
 
+def report_stage(name, elapsed, count=None, unit="items"):
+    """Print a consistent duration and, when available, processing rate."""
+    message = f"{name}: {elapsed:.2f} seconds"
+    if count is not None:
+        rate = count / elapsed if elapsed > 0 else 0
+        message += f" | {count:,} {unit} | {rate:,.1f} {unit}/second"
+    print(message)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Import and analyse the full UESP XML dump."
@@ -28,7 +37,8 @@ def main():
 
     dump_path = get_xml_dump_path()
     print(f"UESP source: {dump_path}")
-    started = perf_counter()
+    pipeline_started = perf_counter()
+    import_result = None
 
     if args.skip_import:
         from src.database import database
@@ -44,25 +54,39 @@ def main():
             parser.error("This dump is not imported yet. Run without --skip-import.")
         dump_id = row["dump_id"]
         print(f"Using existing SQLite import (dump ID {dump_id}).")
+        print("Import stage: skipped (--skip-import).")
     else:
         print("Importing XML pages into SQLite (existing pages are not duplicated)...")
-        result = import_dump(dump_path, batch_size=args.batch_size)
-        dump_id = result["dump_id"]
-        print(f"Pages in SQLite: {result['pages_in_database']:,}")
-        print(f"New pages inserted: {result['pages_inserted']:,}")
-        print(f"Import speed: {result['pages_per_second']:,.0f} pages/second")
+        stage_started = perf_counter()
+        import_result = import_dump(dump_path, batch_size=args.batch_size)
+        import_elapsed = perf_counter() - stage_started
+        dump_id = import_result["dump_id"]
+        print(f"Pages in SQLite: {import_result['pages_in_database']:,}")
+        print(f"New pages inserted: {import_result['pages_inserted']:,}")
+        report_stage("Import stage", import_elapsed,
+                     import_result["pages_inserted"], "new pages")
 
     print("Running bottom-up analysis over imported pages...")
     def report(processed, links, facts):
         print(f"  Analysed {processed:,} pages | {links:,} wiki links | "
               f"{facts:,} candidate fact matches")
 
+    stage_started = perf_counter()
     analysis = analyse_dump(
         dump_id, batch_size=args.analysis_batch_size,
         progress_callback=report,
     )
-    knowledge = build_knowledge_base(dump_id)
+    analysis_elapsed = perf_counter() - stage_started
+    report_stage("Analysis stage", analysis_elapsed,
+                 analysis["pages_analysed"], "pages")
 
+    stage_started = perf_counter()
+    knowledge = build_knowledge_base(dump_id)
+    knowledge_elapsed = perf_counter() - stage_started
+    report_stage("Knowledge-base export", knowledge_elapsed,
+                 knowledge["knowledge_facts"], "facts")
+
+    total_elapsed = perf_counter() - pipeline_started
     print("\n===== BOTTOM-UP RUN COMPLETE =====")
     print(f"Pages analysed: {analysis['pages_analysed']:,}")
     print(f"Wiki links extracted: {analysis['wiki_links_extracted']:,}")
@@ -70,7 +94,7 @@ def main():
     print(f"Template parameters extracted: {analysis['template_parameters_extracted']:,}")
     print(f"Knowledge-base facts: {knowledge['knowledge_facts']:,}")
     print(f"Knowledge base: {knowledge['knowledge_base_path']}")
-    print(f"Total elapsed: {perf_counter() - started:.1f} seconds")
+    print(f"Total elapsed: {total_elapsed:.2f} seconds")
     print("\nNote: extracted relationships are candidates backed by source-page "
           "evidence, not automatically verified lore claims.")
 
