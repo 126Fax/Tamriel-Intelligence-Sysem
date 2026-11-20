@@ -40,6 +40,7 @@ fn read_namespaces(path: &Path) -> Result<HashMap<i64, String>> {
                 let name = event.local_name();
                 if name.as_ref() == b"namespaces" { inside_namespaces = false; }
                 if name.as_ref() == b"namespace" { current_key = None; }
+                if name.as_ref() == b"siteinfo" { break; }
             }
             Event::Eof => break,
             _ => {}
@@ -52,7 +53,7 @@ fn read_namespaces(path: &Path) -> Result<HashMap<i64, String>> {
     Ok(result)
 }
 
-pub fn import_dump(path: &Path, database_path: &Path, batch_size: usize) -> Result<(i64, u64)> {
+pub fn import_dump(path: &Path, database_path: &Path, batch_size: usize, page_limit: Option<usize>) -> Result<(i64, u64)> {
     if batch_size == 0 { anyhow::bail!("batch size must be at least 1"); }
     if !path.is_file() { anyhow::bail!("XML dump not found: {}", path.display()); }
     if !path.to_string_lossy().ends_with(".bz2") {
@@ -71,7 +72,7 @@ pub fn import_dump(path: &Path, database_path: &Path, batch_size: usize) -> Resu
     let decoder = MultiBzDecoder::new(file);
     let mut batch = Vec::with_capacity(batch_size);
     let mut inserted = 0u64;
-    let result = for_each_page(BufReader::new(decoder), None, |page| {
+    let result = for_each_page(BufReader::new(decoder), page_limit, |page| {
         let page_id: i64 = page.page_id.parse().map_err(|error| format!("invalid page ID: {error}"))?;
         let namespace_id: i64 = page.namespace.parse().map_err(|error| format!("invalid namespace ID: {error}"))?;
         let revision_id: Option<i64> = page.revision_id.parse().ok();
