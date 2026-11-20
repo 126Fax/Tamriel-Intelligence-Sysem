@@ -188,7 +188,7 @@ fn clean_entity(value: &str) -> String {
     let wiki_link = Regex::new(r"\[\[([^]|]+)(?:\|([^]]+))?\]\]").unwrap();
     let whitespace = Regex::new(r"\s+").unwrap();
     let article = Regex::new(r"(?i)^(the|a|an)\s+").unwrap();
-    let value = wiki_link.replace_all(value, "$2");
+    let value = wiki_link.replace_all(value, |captures: &regex::Captures| {\n        captures.get(2).or_else(|| captures.get(1)).map(|m| m.as_str()).unwrap_or("").to_string()\n    });
     let value = whitespace.replace_all(&value, " ");
     let value = value.trim_matches(|c: char| {
         c.is_whitespace() || ".,:;!?()[]{}'\"".contains(c)
@@ -202,17 +202,17 @@ pub fn extract_candidate_facts(page: &PageText) -> Vec<CandidateFact> {
     let patterns = [
         (
             "province",
-            Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+(?:a|an)\s+province\s+of\s+(?P<object>[A-Z][\w' -]{0,70}?)(?=[.!?;]|$)").unwrap(),
+            Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+(?:a|an)\s+province\s+of\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(),
             0.95,
         ),
         (
             "lives in",
-            Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+lives?\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)(?=[.!?;]|$)").unwrap(),
+            Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+lives?\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(),
             0.90,
         ),
         (
             "located in",
-            Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+located\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)(?=[.!?;]|$)").unwrap(),
+            Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+located\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(),
             0.90,
         ),
     ];
