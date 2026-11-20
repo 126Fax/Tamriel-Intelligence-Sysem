@@ -8,7 +8,11 @@ from time import perf_counter
 
 from config.paths import get_xml_dump_path
 from src.ingestion.importer import import_dump
-from bottom_up.full_pipeline import analyse_dump, build_knowledge_base
+from bottom_up.full_pipeline import (
+    DEFAULT_BATCH_SIZE,
+    analyse_dump,
+    build_knowledge_base,
+)
 
 
 def report_stage(name, elapsed, count=None, unit="items"):
