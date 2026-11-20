@@ -6,12 +6,12 @@ production Python pipeline or write to the production database.
 ## Components
 
 - `rust-engine/`: Rust crate with a streaming MediaWiki XML reader for
-  `.xml.bz2` dumps and a conservative implementation of the three explicit
-  sentence fact patterns currently used in `bottom_up/full_pipeline.py`.
+  `.xml.bz2` dumps, a lightweight regex-based wikitext structure counter,
+  the three explicit sentence fact patterns currently used in
+  `bottom_up/full_pipeline.py`, and an isolated SQLite batch writer.
 - `experiments/rust_python_comparison/compare.py`: benchmark harness that
-  compares Python's existing XML reader with the Rust executable, checks
-  extracted page records for exact equality, and compares explicit fact
-  candidates on a selected page sample.
+  compares XML page records, wikitext structure counts, explicit fact
+  candidates, and equivalent writes into temporary SQLite databases.
 
 ## Requirements
 
@@ -38,11 +38,14 @@ python -m experiments.rust_python_comparison.compare --full
 ```
 
 The harness writes a JSON report under `data/performance/`. It reports
-elapsed time, pages/second, exact XML record parity, and fact-extraction parity
-for the tested sample. The default is a 10,000-page sample; `--full` opts into
-the complete dump. The fact comparison deliberately uses an empty province
-catalogue so it isolates the three shared sentence patterns; the separate
-province-reference extractor remains Python-only in this first iteration.
+elapsed time, throughput, peak-RSS observations where supported, exact XML
+record parity, wikitext structure-count parity, fact parity, and SQLite row
+parity. The default is a 10,000-page XML sample and 1,000 pages for the other
+stages; `--full` opts into the complete XML dump. Use `--fact-pages` to alter
+the wikitext/fact sample size and `--db-batch-size` to alter the database
+batch size. The fact comparison deliberately uses an empty province catalogue
+so it isolates the three shared sentence patterns; province-reference
+extraction remains Python-only in this first iteration.
 
 ## Safety and interpretation
 
@@ -57,6 +60,17 @@ province-reference extractor remains Python-only in this first iteration.
   Rust, versus the current Python XML reader and its page extraction path.
   Treat it as an end-to-end ingestion component comparison, not a pure
   instruction-level parser benchmark.
-- Rust fact extraction is an early parity target, not a production replacement.
-  It does not yet process wiki markup/templates/links. Those remain future
-  benchmark stages.
+- The Rust wikitext counter is intentionally a simple regex candidate. It is
+  not a MediaWiki parser: nested templates, complex links, comments, parser
+  functions and tag edge cases can produce mismatches. A mismatch is useful
+  evidence that this shortcut is not a safe replacement for
+  `mwparserfromhell`.
+- Rust fact extraction consumes plain text prepared by the Python harness.
+  The benchmark isolates the fact-pattern stage; it does not yet replace
+  MediaWiki markup stripping or province-catalogue extraction.
+- The SQLite test uses a small experimental table in disposable databases.
+  It does not reproduce all production indexes, foreign keys, page inserts,
+  migrations, or the full Bottom-Up transaction pattern.
+- Full end-to-end Rust Bottom-Up processing, template/link row materialisation,
+  and production-schema integration are not implemented yet. Do not connect
+  this prototype to the live project database.
