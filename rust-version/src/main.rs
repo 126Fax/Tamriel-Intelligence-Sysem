@@ -49,6 +49,8 @@ enum Command {
     },
     /// Print row counts from the Rust database.
     Stats { #[arg(long)] db: Option<PathBuf> },
+    /// Import user/mod observations from a JSON array, keeping their provenance separate.
+    ImportObservations { #[arg(long)] input: PathBuf, #[arg(long)] db: Option<PathBuf> },
     /// Review an exported candidate-fact JSON file without changing it.
     Clean {
         #[arg(long)] input: Option<PathBuf>,
@@ -125,11 +127,16 @@ fn main() -> Result<()> {
         Command::Stats { db } => {
             let db_path = db.unwrap_or_else(config::default_database);
             let connection = database::connect(&db_path)?;
-            for table in ["source_dumps","pages","page_analysis","page_template_parameters","page_links","candidate_facts","external_observations"] {
+            for table in ["source_dumps","pages","page_analysis","page_template_parameters","page_links","candidate_facts","entity_candidates","external_observations"] {
                 let count: i64 = connection.query_row(&format!("SELECT COUNT(*) FROM {table}"),[],|row| row.get(0))?;
                 println!("{table}: {count:,}");
             }
             println!("Database: {}",db_path.display());
+        }
+        Command::ImportObservations { input,db } => {
+            let db_path = db.unwrap_or_else(config::default_database);
+            let count = tamriel_intelligence::external::import_observations(&input,&db_path)?;
+            println!("Imported {count} user/mod observations into {}.",db_path.display());
         }
         Command::Clean { input,output } => {
             let input_path = input.unwrap_or_else(config::default_knowledge_base);
