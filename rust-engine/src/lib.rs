@@ -1,11 +1,9 @@
-//! Experimental Rust processing primitives.
+//! Shared Rust processing primitives.
 //!
-//! The first comparison targets are deliberately narrow:
-//! - streaming MediaWiki XML page extraction from .bz2 dumps;
-//! - conservative sentence-pattern fact extraction.
+//! The primary application in `rust-version/` reuses the streaming MediaWiki
+//! XML page reader. This crate also retains a narrow sentence-pattern
+//! extractor and standalone CLI for comparison and benchmarking.
 //!
-//! Python remains the production orchestrator. This crate is not wired into
-//! the production pipeline until parity and benchmark results justify it.
 
 use quick_xml::events::Event;
 use quick_xml::Reader;
@@ -246,8 +244,8 @@ fn clean_entity(value: &str) -> String {
     ARTICLE_RE.replace(value, "").trim().to_string()
 }
 
-/// Extract the same three explicit sentence relationships used by the
-/// current Python baseline. Province-catalogue matching remains Python-side.
+/// Extract baseline sentence relationships for the comparison CLI.
+/// The primary application has its own broader extractor in `rust-version`.
 pub fn extract_candidate_facts(page: &PageText) -> Vec<CandidateFact> {
 
     let mut facts = Vec::new();

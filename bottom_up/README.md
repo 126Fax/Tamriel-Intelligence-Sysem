@@ -1,5 +1,9 @@
 # Bottom-up AI – Lore Discovery System
 
+This guide documents the Python reference implementation and its analysis
+utilities. The primary Rust pipeline and setup instructions are in the
+[Rust implementation guide](../rust-version/README.md).
+
 ## Purpose
 
 The Bottom-Up AI examines UESP wiki data, identifies recurring structures,

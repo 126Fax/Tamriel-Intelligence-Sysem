@@ -1,5 +1,10 @@
 # Knowledge Cleaner prototype
 
+This guide covers the Python reference cleaner. The Rust implementation has a
+separate `clean` command; see the
+[Rust implementation guide](../rust-version/README.md) for its setup and
+behavior.
+
 The Knowledge Cleaner is a separate review stage between bottom-up extraction
 and top-down retrieval.
 

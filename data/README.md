@@ -1,5 +1,10 @@
 # Data Sources and Preparation
 
+The importer and Python commands in this guide cover the reference
+implementation. For the primary Rust workflow, see the
+[Rust implementation guide](../rust-version/README.md); Rust uses its own
+database and knowledge export.
+
 ## Overview
 
 The Tamriel Intelligence System uses XML exports from the Unofficial Elder Scrolls Pages (UESP) wiki as its main data source.

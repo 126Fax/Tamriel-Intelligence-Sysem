@@ -2,9 +2,10 @@
 
 ## Project overview
 
-Rust is the primary development path for processing the full UESP dump. Its
-promotion to the repository's default branch is subject to review; Python
-remains available as the reference implementation while parity is evaluated.
+Rust is the primary implementation and default execution path for processing
+the full UESP dump. Its promotion to the repository's default branch is
+subject to review; Python remains available as the reference implementation
+while parity is evaluated.
 The implementations use separate databases and are not yet feature-equivalent.
 
 - **Bottom-up analysis:** imports wiki pages, records structure and evidence,

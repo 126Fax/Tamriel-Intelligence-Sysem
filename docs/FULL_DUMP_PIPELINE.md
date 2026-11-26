@@ -1,4 +1,10 @@
-# Full UESP import and bottom-up analysis
+# Python reference: full UESP import and bottom-up analysis
+
+This guide covers the Python reference pipeline, not the project's default
+execution path. Use the [Rust implementation guide](../rust-version/README.md)
+for the primary Rust pipeline. The Python commands below use the Python
+database and root-level `knowledge_base.json`; they do not read or overwrite
+Rust's database or exports.
 
 The full XML dump stays local in `data/raw/`; it is not committed to Git.
 The importer streams the compressed XML and stores each page's title, page ID,

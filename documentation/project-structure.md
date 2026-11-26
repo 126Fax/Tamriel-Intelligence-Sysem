@@ -1,5 +1,9 @@
 # Project Folder Structure
 
+This is the historical planned structure, not the current repository layout.
+The current Rust-primary architecture is described in the
+[project README](../README.md).
+
 ## Overview
 
 The project will be organised into separate folders so that the two AI applications, their data and supporting documentation are kept organised.

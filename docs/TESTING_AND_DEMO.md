@@ -1,6 +1,9 @@
-# Testing and running the current project
+# Python reference tests and sample demo
 
-Run commands from the repository root.
+This guide covers Python reference tests and utilities, plus the shared
+extraction-parity checks. Rust is the primary execution path; see the
+[Rust implementation guide](../rust-version/README.md) for its build, test and
+pipeline commands. Run commands from the repository root.
 
 ## 1. Install dependencies
 

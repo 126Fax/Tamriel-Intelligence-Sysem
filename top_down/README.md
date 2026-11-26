@@ -1,5 +1,9 @@
 # Top-down AI – Lore Assistant
 
+This guide documents the Python reference assistant. The primary Rust
+question-answering workflow is documented in the
+[Rust implementation guide](../rust-version/README.md).
+
 ## Current capabilities
 
 The Top-Down AI is an explainable, rule-based assistant. It now combines:

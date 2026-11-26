@@ -1,11 +1,19 @@
 # Development environment
 
-## Use one virtual environment
+This guide covers the Python reference implementation and Python-based
+development tools. Python remains supported as the reference implementation;
+you only need this environment when working on Python components or tools.
 
-The project uses one local Python virtual environment at the repository root:
-`.venv/`. Do not create a separate environment for each component or test
-suite. The bottom-up system, top-down system, pipeline and tests all use the
-same interpreter and installed dependencies.
+Rust has its own development environment and does not require the Python
+environment described here. See the [Rust development and setup
+instructions](../rust-version/README.md).
+
+## Set up the Python reference environment
+
+Use one local Python virtual environment at the repository root, `.venv/`, for
+the Python components and tests. Do not create a separate environment for each
+Python component or test suite. The Python bottom-up system, top-down system,
+pipeline and tests use the same interpreter and installed dependencies.
 
 Create it once:
 
@@ -34,9 +42,10 @@ python --version
 echo "$VIRTUAL_ENV"
 ```
 
-The active interpreter should resolve inside this repository's `.venv`
-directory. In VS Code/Codespaces, select that same interpreter for the
-workspace rather than creating another environment.
+When working on Python components, the active interpreter should resolve
+inside this repository's `.venv` directory. In VS Code/Codespaces, select that
+same interpreter for Python analysis and tests rather than creating another
+Python environment.
 
 ## If duplicate environments already exist
 
