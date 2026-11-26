@@ -55,6 +55,7 @@ source records; they are not silently promoted to canonical facts.
 - `src/wiki.rs` — wikitext structure, template parameter and link extraction,
   markup stripping, and conservative sentence fact extraction.
 - `src/analysis.rs` — Bottom-Up batch analysis and evidence storage.
+- `src/relationship_comparison.rs` — read-only legacy-versus-expanded extractor comparison and JSON audit report.
 - `src/ai_preparation.rs` — resumable, versioned AI-readable page preparation.
 - `src/knowledge.rs` — atomic JSON knowledge-base export.
 - `src/top_down.rs` — question handling, structured fact lookup and page search.
@@ -148,6 +149,38 @@ a precise relationship label, add a prefilter that catches its wording, and prov
 regex with named `subject` and `object` groups. Keep directional meanings distinct:
 for example, `written by` and `author of` should not be treated as interchangeable
 without explicitly reversing the subject and object.
+
+### Compare legacy and expanded relationship extraction
+
+The `compare-relationships` command runs both relationship extractors against the
+same stored pages. It opens the SQLite database read-only and does not rebuild or
+modify any analysis tables. The default sample is the first 50,000 pages in page-ID
+order; change the limit to compare a different sample size.
+
+From the repository root:
+
+```bash
+cargo run --release --manifest-path rust-version/Cargo.toml -- compare-relationships --dump-id 1 --limit 50000
+```
+
+The database defaults to `data/database/tamriel_intelligence_rust.db`. To select a
+different database or report path:
+
+```bash
+cargo run --release --manifest-path rust-version/Cargo.toml -- compare-relationships \\
+  --dump-id 1 \\
+  --db data/database/tamriel_intelligence_rust.db \\
+  --limit 50000 \\
+  --output rust-version/data/reports/relationship_comparison_50k.json
+```
+
+The JSON report records page and fact totals, facts added and removed, counts by
+relationship, repeated subject/relationship/object triples, extraction-only timing
+and up to 100 examples of added and removed facts with their source page and evidence.
+Added facts are review candidates, not automatically classified false positives.
+The shared wikitext parsing step is excluded from both extractor timings. Run the
+command more than once when comparing speed, and keep the same database, dump ID and
+page limit for a fair comparison.
 
 The `analyse` and `run` commands print analysis stage timings, including cleanup
 time per derived table, page counting, province loading and pattern preparation, each fetched batch,
