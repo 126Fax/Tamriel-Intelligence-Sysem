@@ -60,6 +60,7 @@ source records; they are not silently promoted to canonical facts.
 - `src/top_down.rs` — question handling, structured fact lookup and page search.
 - `src/cleaner.rs` — non-destructive candidate review report.
 - `data/reference/provinces.json` — nine-province reference catalogue.
+- `data/reference/relationship_rules.json` — configurable sentence-pattern relationship rules loaded at analysis time.
 
 ## Requirements
 
@@ -124,6 +125,29 @@ and change only `--analysis-batch-size` between runs. Each analysis run rebuilds
 derived analysis tables, so compare elapsed analysis time and output counts. Import
 batch-size comparisons require a fresh, separate database for each run because pages
 already imported are skipped as duplicates.
+
+### Bottom-Up relationship rules
+
+Relationship extraction is driven by `rust-version/data/reference/relationship_rules.json`.
+Each rule has a stable ID, output relationship label, inexpensive prefilter, named-capture
+regular expression (`subject` and `object`), and a fixed confidence score. The Rust
+analysis loads and validates this file at runtime, so adding or tuning a rule does not
+require editing the extractor source. Invalid or duplicate rules stop analysis with an
+error instead of being silently ignored.
+
+The initial ruleset covers geography, character life events, family, organisations,
+political relationships, religion, and creation/authorship. The original province
+context rules remain separate. Every extracted relationship remains a candidate with
+its source page, sentence evidence, extraction method and rule score; a match is not
+proof that the statement is true. These scores are rule settings, not calibrated
+probabilities. Broad or ambiguous patterns should be tested against real UESP pages
+before being treated as reliable.
+
+To add a rule, copy an entry in the JSON `rules` array, give it a unique `id`, choose
+a precise relationship label, add a prefilter that catches its wording, and provide a
+regex with named `subject` and `object` groups. Keep directional meanings distinct:
+for example, `written by` and `author of` should not be treated as interchangeable
+without explicitly reversing the subject and object.
 
 The `analyse` and `run` commands print analysis stage timings, including cleanup
 time per derived table, page counting, province loading and pattern preparation, each fetched batch,
