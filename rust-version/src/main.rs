@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::time::Instant;
 use tamriel_intelligence::{
-    ai_preparation, analysis, cleaner, config, database, ingestion, knowledge, top_down,
+    ai_preparation, analysis, cleaner, config, database, ingestion, knowledge, storage, top_down,
 };
 
 #[derive(Parser)]
@@ -109,6 +109,11 @@ enum Command {
     },
     /// Print row counts from the Rust database.
     Stats {
+        #[arg(long)]
+        db: Option<PathBuf>,
+    },
+    /// Report disk usage for the source dump, databases and generated data without modifying them.
+    StorageReport {
         #[arg(long)]
         db: Option<PathBuf>,
     },
@@ -448,6 +453,10 @@ fn main() -> Result<()> {
                 println!("{table}: {count}");
             }
             println!("Database: {}", db_path.display());
+        }
+        Command::StorageReport { db } => {
+            let db_path = db.unwrap_or_else(config::default_database);
+            storage::print_report(&config::project_root(), &db_path)?;
         }
         Command::HashDerived { dump_id, db } => {
             let db_path = db.unwrap_or_else(config::default_database);
