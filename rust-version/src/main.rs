@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::time::Instant;
 use tamriel_intelligence::{
-    ai_preparation, analysis, cleaner, config, database, ingestion, knowledge, top_down,
+    ai_preparation, analysis, cleaner, config, database, ingestion, knowledge, relationship_comparison, top_down,
 };
 
 #[derive(Parser)]
@@ -100,6 +100,17 @@ enum Command {
         limit: Option<usize>,
         #[arg(long)]
         skip_import: bool,
+    },
+    /// Compare legacy and expanded relationship extraction on the same imported pages.
+    CompareRelationships {
+        #[arg(long)]
+        dump_id: i64,
+        #[arg(long)]
+        db: Option<PathBuf>,
+        #[arg(long, default_value_t = 50000)]
+        limit: usize,
+        #[arg(long)]
+        output: Option<PathBuf>,
     },
     /// Ask the Rust Top-Down prototype a question.
     Ask {
@@ -422,6 +433,23 @@ fn main() -> Result<()> {
                 "Rust pipeline complete in {:.2}s.",
                 total_started.elapsed().as_secs_f64()
             );
+        }
+        Command::CompareRelationships { dump_id, db, limit, output } => {
+            let db_path = db.unwrap_or_else(config::default_database);
+            let output_path = output.unwrap_or_else(relationship_comparison::default_report_path);
+            let report = relationship_comparison::compare_database(
+                &db_path, dump_id, limit, Some(&output_path)
+            )?;
+            println!("Relationship extractor comparison");
+            println!("  Pages compared: {}", report.pages_compared);
+            println!("  Legacy facts: {}", report.legacy_fact_count);
+            println!("  Expanded facts: {}", report.expanded_fact_count);
+            println!("  Added: {} | Removed: {}", report.added_fact_count, report.removed_fact_count);
+            println!("  Legacy extraction: {:.3}s ({:.1} facts/s)", report.legacy_seconds, report.legacy_facts_per_second);
+            println!("  Expanded extraction: {:.3}s ({:.1} facts/s)", report.expanded_seconds, report.expanded_facts_per_second);
+            println!("  Repeated triples: legacy={} expanded={}", report.repeated_triple_count_legacy, report.repeated_triple_count_expanded);
+            println!("  Report: {}", output_path.display());
+            println!("  Review added examples in the JSON report; they are candidates, not automatically confirmed false positives.");
         }
         Command::Ask { question, db } => {
             let db_path = db.unwrap_or_else(config::default_database);
