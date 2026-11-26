@@ -135,8 +135,22 @@ where
     if batch_size == 0 {
         anyhow::bail!("analysis batch size must be at least 1");
     }
-    let read_connection = Connection::open(database_path)?;
+    // The experimental profile is opt-in so the default retains SQLite default
+    // durability settings. Benchmark it only against a separate copy of the same
+    // imported database: WAL mode is persistent for that database.
+    let optimized_sqlite = std::env::var("TIS_SQLITE_PROFILE")
+        .map(|value| value.eq_ignore_ascii_case("optimized"))
+        .unwrap_or(false);
     let mut write_connection = Connection::open(database_path)?;
+    if optimized_sqlite {
+        write_connection.execute_batch(
+            "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY;",
+        )?;
+        println!("SQLite profile: optimized (WAL, synchronous=NORMAL, temp_store=MEMORY)");
+    } else {
+        println!("SQLite profile: standard (SQLite default journal and synchronous settings)");
+    }
+    let read_connection = Connection::open(database_path)?;
     read_connection.execute_batch("PRAGMA cache_size=-65536;")?;
     write_connection.execute_batch("PRAGMA cache_size=-65536;")?;
     write_connection.execute_batch("PRAGMA foreign_keys=ON;")?;

@@ -119,6 +119,37 @@ cargo run --release --manifest-path rust-version/Cargo.toml -- run --limit 50000
 cargo run --release --manifest-path rust-version/Cargo.toml -- run --skip-import --analysis-batch-size 1000
 ```
 
+## SQLite write-profile experiment
+
+The normal profile is unchanged and uses SQLite's default journal and
+synchronous settings. An opt-in experimental profile is available for
+controlled write-performance comparisons:
+
+- **Standard:** default SQLite journal/synchronous settings.
+- **Optimized:** WAL journal mode, `synchronous=NORMAL`, and in-memory temporary
+  storage. This can improve write throughput, but `NORMAL` has a different
+  durability trade-off: the database remains consistent, but the most recent
+  committed transactions may be lost after sudden power loss.
+
+Select the experimental profile for an analysis run with:
+
+```bash
+TIS_SQLITE_PROFILE=optimized cargo run --release --manifest-path rust-version/Cargo.toml -- analyse --dump-id 1 --db data/database/benchmark-optimized.db
+```
+
+Leave the variable unset for the standard profile. **Use two separate copies
+of the same imported database** for the comparison. WAL mode is persistent in
+the database, so switching profiles on the same file is not a valid A/B test.
+Do not benchmark against the only copy of the source database.
+
+For a fair comparison, keep the dump ID, imported pages, analysis batch size,
+build mode, and machine conditions identical. Run each profile at least three
+times, alternate the run order, and compare the median elapsed time, pages per
+second, per-table row counts, and `hash-derived` fingerprints. The five
+derived-table hashes must match before treating the speed result as valid.
+The standard profile remains the default; this experiment does not change
+database schema, extraction logic, or the existing 5,000-page analysis batch.
+
 For a fair analysis-batch comparison, import the sample once, then use `--skip-import`
 and change only `--analysis-batch-size` between runs. Each analysis run rebuilds the
 derived analysis tables, so compare elapsed analysis time and output counts. Import
