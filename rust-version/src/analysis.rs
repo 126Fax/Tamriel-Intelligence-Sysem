@@ -197,10 +197,13 @@ where
     let load_provinces_seconds = provinces_started.elapsed().as_secs_f64();
     let fact_extractor_started = Instant::now();
     let relationship_rules_path = project_root().join("rust-version/data/reference/relationship_rules.json");
-    let relationship_rules: Vec<crate::wiki::RelationshipRule> =
+    let relationship_rules: crate::wiki::RelationshipRuleset =
         serde_json::from_slice(&std::fs::read(&relationship_rules_path)?)
             .map_err(|error| anyhow::anyhow!("loading relationship rules from {}: {error}", relationship_rules_path.display()))?;
-    let fact_extractor = crate::wiki::FactExtractor::from_rules(&provinces, relationship_rules)?;
+    if relationship_rules.schema_version != 1 {
+        anyhow::bail!("unsupported relationship ruleset schema version {} in {}", relationship_rules.schema_version, relationship_rules_path.display());
+    }
+    let fact_extractor = crate::wiki::FactExtractor::from_rules(&provinces, relationship_rules.rules)?;
     let prepare_fact_extractor_seconds = fact_extractor_started.elapsed().as_secs_f64();
     let mut summary = AnalysisSummary::default();
     let mut last_page_id = 0i64;
