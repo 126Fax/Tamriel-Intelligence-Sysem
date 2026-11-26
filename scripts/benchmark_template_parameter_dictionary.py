@@ -146,24 +146,13 @@ def build_dictionary_candidate(path: Path) -> float:
             "SELECT COUNT(*) FROM page_template_parameters"
         ).fetchone()[0]
 
-        connection.execute("""
-            CREATE TABLE template_name_dictionary (
-                template_name_id INTEGER PRIMARY KEY,
-                value TEXT NOT NULL UNIQUE
-            );
-            CREATE TABLE parameter_name_dictionary (
-                parameter_name_id INTEGER PRIMARY KEY,
-                value TEXT NOT NULL UNIQUE
-            );
-            CREATE TABLE parameter_value_dictionary (
-                parameter_value_id INTEGER PRIMARY KEY,
-                value TEXT NOT NULL UNIQUE
-            );
-            CREATE TABLE source_title_dictionary (
-                source_title_id INTEGER PRIMARY KEY,
-                value TEXT NOT NULL UNIQUE
-            );
-        """)
+        for dictionary_sql in (
+            "CREATE TABLE template_name_dictionary (template_name_id INTEGER PRIMARY KEY, value TEXT NOT NULL UNIQUE)",
+            "CREATE TABLE parameter_name_dictionary (parameter_name_id INTEGER PRIMARY KEY, value TEXT NOT NULL UNIQUE)",
+            "CREATE TABLE parameter_value_dictionary (parameter_value_id INTEGER PRIMARY KEY, value TEXT NOT NULL UNIQUE)",
+            "CREATE TABLE source_title_dictionary (source_title_id INTEGER PRIMARY KEY, value TEXT NOT NULL UNIQUE)",
+        ):
+            connection.execute(dictionary_sql)
         for dictionary, column in (
             ("template_name_dictionary", "template_name"),
             ("parameter_name_dictionary", "parameter_name"),
@@ -220,14 +209,12 @@ def build_dictionary_candidate(path: Path) -> float:
         if actual != expected:
             raise RuntimeError(f"Row count changed during conversion: {expected} -> {actual}")
 
-        connection.execute("""
-            CREATE INDEX idx_template_parameters_lookup_dictionary
-                ON page_template_parameters_dictionary(template_name_id,parameter_name_id);
-            CREATE INDEX idx_template_parameter_name_value_dictionary
-                ON page_template_parameters_dictionary(parameter_name_id,parameter_value_id);
-            CREATE INDEX idx_template_parameters_source_dictionary
-                ON page_template_parameters_dictionary(dump_id,source_page_id)
-        """)
+        for index_sql in (
+            "CREATE INDEX idx_template_parameters_lookup_dictionary ON page_template_parameters_dictionary(template_name_id,parameter_name_id)",
+            "CREATE INDEX idx_template_parameter_name_value_dictionary ON page_template_parameters_dictionary(parameter_name_id,parameter_value_id)",
+            "CREATE INDEX idx_template_parameters_source_dictionary ON page_template_parameters_dictionary(dump_id,source_page_id)",
+        ):
+            connection.execute(index_sql)
         connection.execute("DROP TABLE page_template_parameters")
         # Preserve the original read/query shape through a view with the same name.
         connection.execute("""
