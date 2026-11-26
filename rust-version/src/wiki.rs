@@ -25,6 +25,7 @@ struct CompiledRelationshipRule {
     confidence: f64,
 }
 
+#[cfg(test)]
 static LEGACY_FACT_PATTERNS: LazyLock<Vec<(&'static str, Regex, f64)>> = LazyLock::new(|| {
     vec![
     ("province", Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+(?:a|an)\s+province\s+of\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(), 0.95),
@@ -369,10 +370,16 @@ impl FactExtractor {
                 anyhow::bail!("relationship rule '{}' confidence must be between 0 and 1", rule.id);
             }
             prefilters.push(rule.prefilter.clone());
+            let pattern = Regex::new(&rule.pattern)
+                .map_err(|error| anyhow::anyhow!("invalid pattern in relationship rule '{}': {error}", rule.id))?;
+            let has_subject = pattern.capture_names().any(|name| name == Some("subject"));
+            let has_object = pattern.capture_names().any(|name| name == Some("object"));
+            if !has_subject || !has_object {
+                anyhow::bail!("relationship rule '{}' must define named subject and object capture groups", rule.id);
+            }
             compiled.push(CompiledRelationshipRule {
                 relationship: rule.relationship,
-                pattern: Regex::new(&rule.pattern)
-                    .map_err(|error| anyhow::anyhow!("invalid pattern in relationship rule '{}': {error}", rule.id))?,
+                pattern,
                 confidence: rule.confidence,
             });
         }
