@@ -74,7 +74,8 @@ def _answer_lookup(term, facts, analysis):
                     lines.append(f"  Extract: {page['snippet']}")
             return "\n".join(lines), result["facts"]
     return (
-        "I could not identify a specific subject to look up. Try asking about a named person, place, faction or creature.",
+        f"I don't have enough information about {term!r} in the current knowledge base. "
+        "No matching structured facts or source pages were found.",
         [],
     )
 

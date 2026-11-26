@@ -1,6 +1,9 @@
 import unittest
 
-from bottom_up.full_pipeline import extract_candidate_facts
+from bottom_up.full_pipeline import (
+    _compile_province_patterns,
+    extract_candidate_facts,
+)
 
 
 class ProvinceExtractionTests(unittest.TestCase):
@@ -28,6 +31,19 @@ class ProvinceExtractionTests(unittest.TestCase):
         self.assertFalse(any(
             fact["relationship"] == "province of" for fact in facts
         ))
+
+    def test_precompiled_province_patterns_preserve_extraction(self):
+        provinces = ["Skyrim", "Morrowind"]
+        text = (
+            "Skyrim is one of the nine provinces of Tamriel. "
+            "Morrowind is also among the provinces of Tamriel."
+        )
+        expected = extract_candidate_facts(text, 12, "Test page", provinces)
+        patterns = _compile_province_patterns(provinces)
+        actual = extract_candidate_facts(
+            text, 12, "Test page", provinces, patterns
+        )
+        self.assertEqual(actual, expected)
 
 
 if __name__ == "__main__":

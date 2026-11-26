@@ -32,3 +32,18 @@ pub struct KnowledgeFact {
     pub extraction_method: String,
     pub confidence: f64,
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TypedKnowledgeObservation {
+    pub dump_id: Option<i64>,
+    pub entity_type: String,
+    pub subject: String,
+    pub value: String,
+    pub source_page_id: Option<i64>,
+    pub source_page: Option<String>,
+    pub evidence: String,
+    pub extraction_method: Option<String>,
+    pub source_type: String,
+    pub source_id: String,
+    pub mod_id: Option<String>,
+}

@@ -22,13 +22,27 @@ fn read_namespaces(path: &Path) -> Result<HashMap<i64, String>> {
         match reader.read_event_into(&mut buffer)? {
             Event::Start(event) => {
                 let name = event.local_name();
-                if name.as_ref() == b"namespaces" { inside_namespaces = true; }
-                else if inside_namespaces && name.as_ref() == b"namespace" {
+                if name.as_ref() == b"namespaces" {
+                    inside_namespaces = true;
+                } else if inside_namespaces && name.as_ref() == b"namespace" {
                     for attribute in event.attributes().with_checks(false) {
                         let attribute = attribute?;
                         if attribute.key.local_name().as_ref() == b"key" {
-                            current_key = Some(std::str::from_utf8(&attribute.value)?.parse()?);
+                            let key = std::str::from_utf8(&attribute.value)?.parse()?;
+                            result.insert(key, String::new());
+                            current_key = Some(key);
                         }
+                    }
+                }
+            }
+            Event::Empty(event)
+                if inside_namespaces && event.local_name().as_ref() == b"namespace" =>
+            {
+                for attribute in event.attributes().with_checks(false) {
+                    let attribute = attribute?;
+                    if attribute.key.local_name().as_ref() == b"key" {
+                        let key = std::str::from_utf8(&attribute.value)?.parse()?;
+                        result.insert(key, String::new());
                     }
                 }
             }
@@ -39,9 +53,15 @@ fn read_namespaces(path: &Path) -> Result<HashMap<i64, String>> {
             }
             Event::End(event) => {
                 let name = event.local_name();
-                if name.as_ref() == b"namespaces" { inside_namespaces = false; }
-                if name.as_ref() == b"namespace" { current_key = None; }
-                if name.as_ref() == b"siteinfo" { break; }
+                if name.as_ref() == b"namespaces" {
+                    inside_namespaces = false;
+                }
+                if name.as_ref() == b"namespace" {
+                    current_key = None;
+                }
+                if name.as_ref() == b"siteinfo" {
+                    break;
+                }
             }
             Event::Eof => break,
             _ => {}
@@ -54,7 +74,12 @@ fn read_namespaces(path: &Path) -> Result<HashMap<i64, String>> {
     Ok(result)
 }
 
-pub fn import_dump(path: &Path, database_path: &Path, batch_size: usize, page_limit: Option<usize>) -> Result<(i64, u64)> {
+pub fn import_dump(
+    path: &Path,
+    database_path: &Path,
+    batch_size: usize,
+    page_limit: Option<usize>,
+) -> Result<(i64, u64)> {
     import_dump_with_progress(path, database_path, batch_size, page_limit, |_, _| {})
 }
 
@@ -69,8 +94,12 @@ pub fn import_dump_with_progress<F>(
 where
     F: FnMut(u64, f64),
 {
-    if batch_size == 0 { anyhow::bail!("batch size must be at least 1"); }
-    if !path.is_file() { anyhow::bail!("XML dump not found: {}", path.display()); }
+    if batch_size == 0 {
+        anyhow::bail!("batch size must be at least 1");
+    }
+    if !path.is_file() {
+        anyhow::bail!("XML dump not found: {}", path.display());
+    }
     if !path.to_string_lossy().ends_with(".bz2") {
         anyhow::bail!("The importer expects a compressed .bz2 XML dump.");
     }
@@ -79,7 +108,9 @@ where
     let mut connection = crate::database::connect(database_path)?;
     let dump_id = crate::database::register_dump(
         &connection,
-        path.file_name().and_then(|name| name.to_str()).unwrap_or("uesp.xml.bz2")
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("uesp.xml.bz2"),
     )?;
     crate::database::set_dump_status(&connection, dump_id, "importing")?;
 
@@ -90,18 +121,34 @@ where
     let mut pages_read = 0u64;
     let started = Instant::now();
     let result = for_each_page(BufReader::new(decoder), page_limit, |page| {
-        let page_id: i64 = page.page_id.parse().map_err(|error| format!("invalid page ID: {error}"))?;
-        let namespace_id: i64 = page.namespace.parse().map_err(|error| format!("invalid namespace ID: {error}"))?;
+        let page_id: i64 = page
+            .page_id
+            .parse()
+            .map_err(|error| format!("invalid page ID: {error}"))?;
+        let namespace_id: i64 = page
+            .namespace
+            .parse()
+            .map_err(|error| format!("invalid namespace ID: {error}"))?;
         let revision_id: Option<i64> = page.revision_id.parse().ok();
-        let namespace_name = namespaces.get(&namespace_id).cloned()
+        let namespace_name = namespaces
+            .get(&namespace_id)
+            .cloned()
             .unwrap_or_else(|| format!("Unknown ({namespace_id})"));
-        batch.push((page_id, page.title, namespace_id, namespace_name, revision_id, page.text));
+        batch.push((
+            page_id,
+            page.title,
+            namespace_id,
+            namespace_name,
+            revision_id,
+            page.text,
+        ));
         pages_read += 1;
         if pages_read % 500 == 0 {
             progress(pages_read, started.elapsed().as_secs_f64());
         }
         if batch.len() >= batch_size {
-            inserted += insert_batch(&mut connection, dump_id, &batch).map_err(|error| error.to_string())?;
+            inserted += insert_batch(&mut connection, dump_id, &batch)
+                .map_err(|error| error.to_string())?;
             batch.clear();
         }
         Ok(())
@@ -127,13 +174,19 @@ fn insert_batch(
     let mut statement = transaction.prepare(
         "INSERT OR IGNORE INTO pages
          (dump_id,page_id,title,namespace_id,namespace_name,revision_id,text_length,page_text)
-         VALUES (?,?,?,?,?,?,?,?)"
+         VALUES (?,?,?,?,?,?,?,?)",
     )?;
     let mut inserted = 0u64;
-    for (page_id,title,namespace_id,namespace_name,revision_id,text) in batch {
+    for (page_id, title, namespace_id, namespace_name, revision_id, text) in batch {
         inserted += statement.execute(params![
-            dump_id,page_id,title,namespace_id,namespace_name,revision_id,
-            text.chars().count(),text
+            dump_id,
+            page_id,
+            title,
+            namespace_id,
+            namespace_name,
+            revision_id,
+            text.chars().count(),
+            text
         ])? as u64;
     }
     drop(statement);

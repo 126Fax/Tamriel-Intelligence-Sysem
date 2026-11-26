@@ -31,6 +31,12 @@ def identify_intent(question):
         return "random_fact"
     if re.match(r"^how many\b", q):
         return "count"
+    if re.match(r"^(?:which|what) .+?\bbelong(?:s)? to\b", q):
+        return "find_subjects"
+    if re.match(r"^where do .+? live\b|^where does .+? live\b", q):
+        return "find_object"
+    if re.match(r"^who rules\b", q):
+        return "find_subjects"
     if re.match(r"^(?:what|who|where|when|which|tell me about|describe|explain)\b", q):
         return "lookup"
     return "search"
@@ -98,7 +104,8 @@ def analyse_question(question):
     if match:
         result.update(intent="find_subjects", relationship="province",
                       object_hint=_clean(match.group(2)),
-                      search_term=_clean(match.group(2)))
+                      search_term=_clean(match.group(2)),
+                      subject_hint=None)
     match = re.match(r"^where do (.+?) live[?!.]*$", q)
     if not match:
         match = re.match(r"^where does (.+?) live[?!.]*$", q)

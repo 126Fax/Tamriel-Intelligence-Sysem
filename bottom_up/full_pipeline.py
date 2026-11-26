@@ -135,6 +135,22 @@ def ensure_analysis_schema(connection):
     )
 
 
+def _compile_province_patterns(provinces):
+    """Prepare province-context patterns once for a multi-page analysis."""
+    prepared = []
+    for province in provinces:
+        escaped = re.escape(province)
+        patterns = (
+            rf"\b{escaped}\b.{{0,500}}\b(?:one of the |among the )?(?:nine )?provinces? of Tamriel\b",
+            rf"\bprovinces? of Tamriel\b.{{0,500}}\b{escaped}\b",
+            rf"\bTamriel['’]s (?:nine )?provinces?\b.{{0,500}}\b{escaped}\b",
+        )
+        prepared.append(
+            (province, tuple(re.compile(pattern, re.IGNORECASE) for pattern in patterns))
+        )
+    return tuple(prepared)
+
+
 def _clean_entity(value):
     """Remove wiki leftovers and surrounding punctuation from an entity."""
     value = re.sub(r"\[\[([^]|]+)(?:\|([^]]+))?\]\]", lambda m: m.group(2) or m.group(1), value)
@@ -178,7 +194,7 @@ def extract_template_parameters(wikicode, source_page_id, source_title):
 
 
 def extract_candidate_facts(plain_text, source_page_id, source_title,
-                            provinces=None):
+                            provinces=None, province_patterns=None):
     """Extract explicit relations plus targeted evidence for known provinces.
 
     Pass a preloaded province catalogue when processing many pages so the
@@ -187,6 +203,8 @@ def extract_candidate_facts(plain_text, source_page_id, source_title,
     if provinces is None:
         from bottom_up.province_catalog import load_provinces
         provinces = load_provinces()
+    if province_patterns is None:
+        province_patterns = _compile_province_patterns(provinces)
 
     facts = []
     for sentence in re.split(r"(?<=[.!?])\s+|\n+", plain_text):
@@ -214,16 +232,8 @@ def extract_candidate_facts(plain_text, source_page_id, source_title,
         # The reference catalogue helps the extractor look for less common
         # phrasings, but a province candidate is emitted only when the source
         # sentence explicitly connects that name to Tamriel's provinces.
-        for province in provinces:
-            escaped = re.escape(province)
-            province_contexts = (
-                rf"\b{escaped}\b.{{0,500}}\b(?:one of the |among the )?"
-                rf"(?:nine )?provinces? of Tamriel\b",
-                rf"\bprovinces? of Tamriel\b.{{0,500}}\b{escaped}\b",
-                rf"\bTamriel['’]s (?:nine )?provinces?\b.{{0,500}}\b{escaped}\b",
-            )
-            if any(re.search(pattern, sentence, re.IGNORECASE)
-                   for pattern in province_contexts):
+        for province, contexts in province_patterns:
+            if any(pattern.search(sentence) for pattern in contexts):
                 facts.append({
                     "source_page_id": int(source_page_id),
                     "source_page": source_title,
@@ -282,6 +292,7 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
         from bottom_up.province_catalog import load_provinces
         stage_started = perf_counter()
         provinces = load_provinces()
+        province_patterns = _compile_province_patterns(provinces)
         timings["province_catalogue"] += perf_counter() - stage_started
 
         stage_started = perf_counter()
@@ -368,7 +379,8 @@ def analyse_dump(dump_id, batch_size=DEFAULT_BATCH_SIZE, progress_callback=None)
 
                 stage_started = perf_counter()
                 for fact in extract_candidate_facts(
-                    plain_text, page["page_id"], page["title"], provinces
+                    plain_text, page["page_id"], page["title"], provinces,
+                    province_patterns,
                 ):
                     connection.execute(
                         """

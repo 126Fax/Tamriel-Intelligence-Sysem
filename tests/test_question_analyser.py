@@ -25,7 +25,7 @@ class QuestionAnalyserTests(unittest.TestCase):
         self.assertEqual(identify_intent("Which provinces belong to the Empire?"), "find_subjects")
         self.assertEqual(identify_intent("Where do dragons live?"), "find_object")
         self.assertEqual(identify_intent("Who rules Skyrim?"), "find_subjects")
-        self.assertEqual(identify_intent("Explain the Dragon War"), "unknown")
+        self.assertEqual(identify_intent("Explain the Dragon War"), "lookup")
 
     def test_search_terms_extract_the_relevant_entity(self):
         self.assertEqual(extract_search_term("Where do dragons live?"), "dragons")

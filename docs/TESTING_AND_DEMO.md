@@ -27,6 +27,30 @@ The suite covers:
 - top-down question normalisation and basic intent/relationship recognition;
 - the committed five-page UESP sample import and analysis workflow.
 
+The shared `tests/fixtures/extraction_parity.json` fixture is also run through
+the Python and Rust extraction tests. It checks semantic signals and retained
+evidence/provenance for templates, links, headings, categories, facts and typed
+candidates. Run the focused checks with:
+
+```bash
+python -m unittest discover -s tests -p test_extraction_parity.py -v
+cargo test --manifest-path rust-version/Cargo.toml --test extraction_parity_tests
+```
+
+The parity contract intentionally compares extracted meaning rather than
+requiring the two parsers to produce identical internal representations.
+
+To compare selected real pages from the completed Rust database, run:
+
+```bash
+python scripts/run_real_data_extraction_parity.py
+```
+
+This opens the source database read-only, writes only temporary fixtures and
+test databases, and removes sampled page text when the run ends. See
+[Rust/Python parity status](./RUST_PYTHON_PARITY.md) for sample scope,
+database/export compatibility, feature gaps, and CI coverage.
+
 ## 3. Run the demonstration
 
 ```bash

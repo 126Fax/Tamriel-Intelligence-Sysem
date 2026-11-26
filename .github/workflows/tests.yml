@@ -1,4 +1,4 @@
-name: Python tests
+name: Project tests
 
 on:
   push:
@@ -10,11 +10,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: python-tests-${{ github.workflow }}-${{ github.ref }}
+  group: project-tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
+  python-reference:
+    name: Python reference tests
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -30,15 +31,19 @@ jobs:
       - name: Run automated tests
         run: python -m unittest discover -s tests -p "test_*.py" -v
 
-  rust-experiment:
-    name: Rust experiment tests
+  rust:
+    name: Rust engine and application tests
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: Run Rust unit tests
+      - name: Test comparison engine
         run: cargo test --manifest-path rust-engine/Cargo.toml
-      - name: Build release executable
+      - name: Test Rust implementation
+        run: cargo test --manifest-path rust-version/Cargo.toml
+      - name: Build comparison engine
         run: cargo build --release --manifest-path rust-engine/Cargo.toml
+      - name: Build Rust implementation
+        run: cargo build --release --manifest-path rust-version/Cargo.toml

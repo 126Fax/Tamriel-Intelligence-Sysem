@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::path::Path;
 
 pub const SCHEMA: &str = r#"
@@ -102,6 +102,27 @@ CREATE INDEX IF NOT EXISTS idx_entity_candidates_source
     ON entity_candidates(source_type,source_id,mod_id);
 CREATE INDEX IF NOT EXISTS idx_external_observations_source
     ON external_observations(source_type,source_id,mod_id);
+CREATE TABLE IF NOT EXISTS ai_pages (
+    dump_id INTEGER NOT NULL,
+    page_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    namespace_id INTEGER NOT NULL,
+    namespace_name TEXT NOT NULL,
+    revision_id INTEGER,
+    readable_text TEXT NOT NULL,
+    headings_json TEXT NOT NULL,
+    templates_json TEXT NOT NULL,
+    links_json TEXT NOT NULL,
+    categories_json TEXT NOT NULL,
+    external_links_json TEXT NOT NULL,
+    source_text_hash TEXT NOT NULL,
+    processor_version TEXT NOT NULL,
+    prepared_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (dump_id,page_id),
+    FOREIGN KEY (dump_id,page_id) REFERENCES pages(dump_id,page_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ai_pages_processor
+    ON ai_pages(dump_id,processor_version);
 "#;
 
 pub fn connect(path: &Path) -> Result<Connection> {
@@ -109,20 +130,27 @@ pub fn connect(path: &Path) -> Result<Connection> {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating database directory {}", parent.display()))?;
     }
-    let connection = Connection::open(path)
-        .with_context(|| format!("opening database {}", path.display()))?;
+    let connection =
+        Connection::open(path).with_context(|| format!("opening database {}", path.display()))?;
     connection.execute_batch(SCHEMA)?;
     Ok(connection)
 }
 
 pub fn register_dump(connection: &Connection, source_name: &str) -> Result<i64> {
-    if let Some(id) = connection.query_row(
-        "SELECT dump_id FROM source_dumps WHERE source_name=? ORDER BY dump_id DESC LIMIT 1",
-        [source_name], |row| row.get::<_, i64>(0)
-    ).ok() {
+    if let Some(id) = connection
+        .query_row(
+            "SELECT dump_id FROM source_dumps WHERE source_name=? ORDER BY dump_id DESC LIMIT 1",
+            [source_name],
+            |row| row.get::<_, i64>(0),
+        )
+        .ok()
+    {
         return Ok(id);
     }
-    connection.execute("INSERT INTO source_dumps(source_name) VALUES (?)", [source_name])?;
+    connection.execute(
+        "INSERT INTO source_dumps(source_name) VALUES (?)",
+        [source_name],
+    )?;
     Ok(connection.last_insert_rowid())
 }
 
@@ -131,14 +159,17 @@ pub fn set_dump_status(connection: &Connection, dump_id: i64, status: &str) -> R
         "UPDATE source_dumps SET import_status=?,
          completed_at=CASE WHEN ?='completed' THEN CURRENT_TIMESTAMP ELSE NULL END
          WHERE dump_id=?",
-        params![status,status,dump_id]
+        params![status, status, dump_id],
     )?;
     Ok(())
 }
 
 pub fn latest_dump_id(connection: &Connection, source_name: &str) -> Result<Option<i64>> {
-    Ok(connection.query_row(
-        "SELECT dump_id FROM source_dumps WHERE source_name=? ORDER BY dump_id DESC LIMIT 1",
-        [source_name], |row| row.get(0)
-    ).ok())
+    Ok(connection
+        .query_row(
+            "SELECT dump_id FROM source_dumps WHERE source_name=? ORDER BY dump_id DESC LIMIT 1",
+            [source_name],
+            |row| row.get(0),
+        )
+        .ok())
 }
