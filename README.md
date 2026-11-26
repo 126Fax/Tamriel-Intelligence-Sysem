@@ -13,6 +13,16 @@ The implementations use separate databases and are not yet feature-equivalent.
 - **Top-down retrieval:** answers a limited set of questions from those
   structured records and source pages.
 
+## Development setup and tests
+
+The Codespace does not install Rust during container creation. Run the setup-and-test script when you want to prepare the toolchains and execute the complete automated test suite:
+
+```bash
+bash scripts/setup-and-test.sh
+```
+
+The script installs stable Rust with rustup only when Rust/Cargo/rustup are missing, ensures Clippy and rustfmt are available, prepares the Python virtual environment, runs both Rust test suites, builds both Rust crates in release mode, and runs the Python reference tests. Subsequent runs reuse the installed toolchains and virtual environment. It does not import or process the full UESP dump.
+
 ## Rust quick start
 
 From the repository root, build and run the Rust tests:
