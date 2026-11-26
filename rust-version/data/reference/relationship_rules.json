@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "description": "Configurable sentence-pattern rules for conservative Bottom-Up relationship candidate extraction. Confidence values are fixed rule scores, not statistical probabilities.",
+  "rules": [
+    {
+      "id": "province",
+      "relationship": "province",
+      "prefilter": "is\\s+(?:a|an)\\s+province\\s+of",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+is\\s+(?:a|an)\\s+province\\s+of\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.95
+    },
+    {
+      "id": "lives-in",
+      "relationship": "lives in",
+      "prefilter": "lives?\\s+in",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+lives?\\s+in\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.9
+    },
+    {
+      "id": "located-in",
+      "relationship": "located in",
+      "prefilter": "is\\s+located\\s+in",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+is\\s+located\\s+in\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.9
+    },
+    {
+      "id": "part-of",
+      "relationship": "part of",
+      "prefilter": "is\\s+part\\s+of",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+is\\s+part\\s+of\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.88
+    },
+    {
+      "id": "capital-of",
+      "relationship": "capital of",
+      "prefilter": "is\\s+(?:the\\s+)?capital\\s+of",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+is\\s+(?:the\\s+)?capital\\s+of\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.94
+    },
+    {
+      "id": "borders",
+      "relationship": "borders",
+      "prefilter": "borders|shares\\s+a\\s+border\\s+with",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:borders|shares\\s+a\\s+border\\s+with)\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.88
+    },
+    {
+      "id": "born-in",
+      "relationship": "born in",
+      "prefilter": "was\\s+born\\s+in|born\\s+in",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:was\\s+)?born\\s+in\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.91
+    },
+    {
+      "id": "died-in",
+      "relationship": "died in",
+      "prefilter": "died\\s+in|was\\s+killed\\s+in",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:died|was\\s+killed)\\s+in\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.9
+    },
+    {
+      "id": "native-to",
+      "relationship": "native to",
+      "prefilter": "is\\s+native\\s+to|are\\s+native\\s+to",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:is|are)\\s+native\\s+to\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.91
+    },
+    {
+      "id": "member-of",
+      "relationship": "member of",
+      "prefilter": "is\\s+(?:a\\s+)?member\\s+of|belongs\\s+to",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:is\\s+(?:a\\s+)?member\\s+of|belongs\\s+to)\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.9
+    },
+    {
+      "id": "leader-of",
+      "relationship": "leader of",
+      "prefilter": "is\\s+(?:the\\s+)?leader\\s+of|leads",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:is\\s+(?:the\\s+)?leader\\s+of|leads)\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.88
+    },
+    {
+      "id": "ruled-by",
+      "relationship": "ruled by",
+      "prefilter": "is\\s+ruled\\s+by|was\\s+ruled\\s+by",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:is|was)\\s+ruled\\s+by\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.9
+    },
+    {
+      "id": "founded-by",
+      "relationship": "founded by",
+      "prefilter": "was\\s+founded\\s+by|founded\\s+by",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:was\\s+)?founded\\s+by\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.9
+    },
+    {
+      "id": "created-by",
+      "relationship": "created by",
+      "prefilter": "was\\s+created\\s+by|created\\s+by",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:was\\s+)?created\\s+by\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.9
+    },
+    {
+      "id": "written-by",
+      "relationship": "written by",
+      "prefilter": "was\\s+written\\s+by|written\\s+by",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:was\\s+)?written\\s+by\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.92
+    },
+    {
+      "id": "associated-with",
+      "relationship": "associated with",
+      "prefilter": "is\\s+associated\\s+with",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+is\\s+associated\\s+with\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.82
+    },
+    {
+      "id": "married-to",
+      "relationship": "married to",
+      "prefilter": "is\\s+married\\s+to|married\\s+to",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:is\\s+)?married\\s+to\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.92
+    },
+    {
+      "id": "sibling-of",
+      "relationship": "sibling of",
+      "prefilter": "is\\s+(?:a\\s+)?sibling\\s+of",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+is\\s+(?:a\\s+)?sibling\\s+of\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.9
+    },
+    {
+      "id": "parent-of",
+      "relationship": "parent of",
+      "prefilter": "is\\s+(?:the\\s+)?parent\\s+of",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+is\\s+(?:the\\s+)?parent\\s+of\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.9
+    },
+    {
+      "id": "child-of",
+      "relationship": "child of",
+      "prefilter": "is\\s+(?:a\\s+)?child\\s+of",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+is\\s+(?:a\\s+)?child\\s+of\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.9
+    },
+    {
+      "id": "worships",
+      "relationship": "worships",
+      "prefilter": "worships|worship",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+worships?\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.88
+    },
+    {
+      "id": "affiliated-with",
+      "relationship": "affiliated with",
+      "prefilter": "is\\s+affiliated\\s+with",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+is\\s+affiliated\\s+with\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.86
+    },
+    {
+      "id": "successor-to",
+      "relationship": "successor to",
+      "prefilter": "is\\s+the\\s+successor\\s+to|succeeded",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:is\\s+the\\s+successor\\s+to|succeeded)\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.87
+    },
+    {
+      "id": "allied-with",
+      "relationship": "allied with",
+      "prefilter": "is\\s+allied\\s+with|are\\s+allied\\s+with",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:is|are)\\s+allied\\s+with\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.86
+    },
+    {
+      "id": "destroyed-by",
+      "relationship": "destroyed by",
+      "prefilter": "was\\s+destroyed\\s+by",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+was\\s+destroyed\\s+by\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.9
+    },
+    {
+      "id": "built-by",
+      "relationship": "built by",
+      "prefilter": "was\\s+built\\s+by",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+was\\s+built\\s+by\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "confidence": 0.9
+    }
+  ]
+}
