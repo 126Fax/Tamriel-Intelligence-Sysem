@@ -67,7 +67,7 @@ def run_zstd(command: list[str]) -> None:
     if result.returncode:
         detail = result.stderr.strip() or result.stdout.strip()
         raise RuntimeError(
-            f"Command failed ({result.returncode}): {' '.join(command)}\\n{detail}"
+            f"Command failed ({result.returncode}): {' '.join(command)}\n{detail}"
         )
 
 
@@ -244,7 +244,7 @@ def main() -> int:
         },
     }
     report_path.write_text(
-        json.dumps(report, indent=2, ensure_ascii=False) + "\\n",
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
 
