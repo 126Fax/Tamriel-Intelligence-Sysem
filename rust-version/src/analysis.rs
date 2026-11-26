@@ -196,7 +196,11 @@ where
     let provinces: Vec<String> = serde_json::from_slice(&std::fs::read(province_path)?)?;
     let load_provinces_seconds = provinces_started.elapsed().as_secs_f64();
     let fact_extractor_started = Instant::now();
-    let fact_extractor = crate::wiki::FactExtractor::new(&provinces);
+    let relationship_rules_path = project_root().join("rust-version/data/reference/relationship_rules.json");
+    let relationship_rules: Vec<crate::wiki::RelationshipRule> =
+        serde_json::from_slice(&std::fs::read(&relationship_rules_path)?)
+            .map_err(|error| anyhow::anyhow!("loading relationship rules from {}: {error}", relationship_rules_path.display()))?;
+    let fact_extractor = crate::wiki::FactExtractor::from_rules(&provinces, relationship_rules)?;
     let prepare_fact_extractor_seconds = fact_extractor_started.elapsed().as_secs_f64();
     let mut summary = AnalysisSummary::default();
     let mut last_page_id = 0i64;
