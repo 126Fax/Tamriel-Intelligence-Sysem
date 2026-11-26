@@ -1,112 +1,105 @@
 # Tamriel Intelligence System
 
-## Project overview
+A Rust-based project for processing Elder Scrolls lore from the UESP Wiki and making the resulting knowledge searchable and usable by a question-answering system.
 
-The Tamriel Intelligence System is a Python AI project that explores two cooperating approaches to Elder Scrolls lore from the UESP Wiki:
+The current application is implemented in **Rust**. The earlier Python implementation is retained in the repository as a reference and comparison point; the Rust application uses its own SQLite database and knowledge-base export.
 
-- **Bottom-up AI:** examines wiki content, identifies recurring features and patterns, and organises knowledge into a structured form.
-- **Top-down AI:** interprets a user's question, retrieves relevant facts from that structured knowledge, and produces an answer.
+## How it works
 
-The aim is to build understandable working examples, test them, and gradually connect them. The two systems are not yet fully integrated.
+The project follows a Bottom-Up and Top-Down approach:
 
-## Current working components
+- **Bottom-Up processing** imports the compressed UESP MediaWiki XML dump, analyses wiki pages, extracts links, template parameters and candidate facts, and records the source evidence.
+- **Knowledge storage** keeps imported source pages, analysis results and evidence-backed candidates in SQLite. The Rust pipeline can export candidate knowledge to JSON.
+- **Top-Down retrieval** accepts a question, identifies supported search intents and retrieves relevant structured facts or source pages.
+- **Review and external observations** provide a first-pass candidate cleaner and a separate import path for user/mod observations. External observations remain distinct from UESP source records.
 
-- Compressed MediaWiki XML reading and page import into SQLite.
-- A five-page UESP sample import and structural analysis demonstration.
-- A bottom-up prototype for basic pattern and relationship exploration.
-- A Knowledge Cleaner prototype that reviews candidate facts and records approval, rejection or review decisions.
-- A rule-based top-down question-answering prototype using `knowledge_base.json`.
-- Automated tests and GitHub Actions CI.
+The aim is to build a traceable knowledge system: extracted information should retain where it came from, rather than becoming an unsupported statement.
 
-## Quick start
+## Rust implementation
 
-Create and activate the project's single virtual environment, then install
-dependencies:
+The main Rust application is in [`rust-version/`](rust-version/README.md). Its reusable XML and fact-processing primitives are in [`rust-engine/`](rust-engine/).
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
+### Requirements
 
-If `.venv` already exists, activate it rather than creating another one.
-See [Development environment](docs/DEVELOPMENT_ENVIRONMENT.md) for setup and
-safe duplicate-environment cleanup instructions.
+- Rust stable toolchain and Cargo.
+- The UESP compressed XML dump (`.xml.bz2`) for real-data processing.
+- Python is not required to build or run the Rust application.
 
-Run the full automated test suite:
+### Build and test
+
+Run these commands from the repository root:
 
 ```bash
-python -m unittest discover -s tests -p "test_*.py" -v
+cargo test --manifest-path rust-engine/Cargo.toml
+cargo test --manifest-path rust-version/Cargo.toml
+cargo build --release --manifest-path rust-version/Cargo.toml
 ```
 
-Run the bottom-up sample demonstration:
+### Run the Rust pipeline
+
+Run a small end-to-end test first:
 
 ```bash
-python -m bottom_up.run_demo
+cargo run --release --manifest-path rust-version/Cargo.toml -- run --limit 1000
 ```
 
-The standalone sentence-pattern discovery functions are available from
-`bottom_up.pattern_discovery`. They support multi-word variable values,
-configurable support thresholds and pattern-specialisation analysis.
-
-Run the Knowledge Cleaner against the generated candidate facts:
+Run the full pipeline:
 
 ```bash
-python -m cleaner.run_cleaner
+cargo run --release --manifest-path rust-version/Cargo.toml -- run
 ```
 
-The Cleaner reads `knowledge_base.json` without modifying it and writes an auditable review report to `data/cleaner/cleaner_results.json`. See [docs/KNOWLEDGE_CLEANER.md](docs/KNOWLEDGE_CLEANER.md) for its decisions and limitations.
-
-Run the top-down question-answering prototype:
+If the dump is outside the default `data/raw/` location, provide its path:
 
 ```bash
-python -m top_down.chat
+cargo run --release --manifest-path rust-version/Cargo.toml -- run --dump data/raw/uespwiki-2026-11-01-current.xml.bz2
 ```
 
-The top-down prototype currently uses six manually supplied sample facts in `knowledge_base.json`. It can answer the example questions supported by those facts, but it does not yet query all 477,491 pages or automatically use bottom-up discoveries.
-
-## Full UESP data and bottom-up pipeline
-
-The full UESP XML dump is not stored in Git. Keep it locally under `data/raw/`. The full pipeline streams the dump into SQLite, analyses the imported pages, stores extracted links and evidence-backed candidate relationships, and rebuilds `knowledge_base.json` for the top-down prototype.
-
-Run the full workflow:
+The pipeline imports the dump, runs Bottom-Up analysis and exports the knowledge base. To repeat analysis using pages already imported into the Rust database:
 
 ```bash
-python -m bottom_up.run_full_pipeline
+cargo run --release --manifest-path rust-version/Cargo.toml -- run --skip-import
 ```
 
-If the dump is already imported and you only want to rerun bottom-up analysis:
+### Other useful commands
 
 ```bash
-python -m bottom_up.run_full_pipeline --skip-import
+# Initialise the Rust database
+cargo run --release --manifest-path rust-version/Cargo.toml -- init-db
+
+# Show database row counts
+cargo run --release --manifest-path rust-version/Cargo.toml -- stats
+
+# Ask the Top-Down prototype a question
+cargo run --release --manifest-path rust-version/Cargo.toml -- ask "What happened in Saarthal?"
+
+# Review an exported candidate-fact file
+cargo run --release --manifest-path rust-version/Cargo.toml -- clean
 ```
 
-See [docs/FULL_DUMP_PIPELINE.md](docs/FULL_DUMP_PIPELINE.md) for the database tables, batch settings and current extraction limits. The committed synthetic fixtures are used for automated tests and do not require the full dump.
+See [the Rust implementation guide](rust-version/README.md) for command options, batch-size comparisons, database locations, architecture and known limitations.
 
-## Architecture and next steps
+## Python reference implementation
 
-The intended data flow is:
+The original Python implementation remains in the repository. It is useful for comparing behaviour and checking the Rust port, but it is not the primary application entry point. The Rust and Python databases are separate; running the Rust pipeline does not overwrite the Python database or its generated knowledge base.
 
-```text
-UESP XML
-   |
-   v
-Bottom-up analysis
-   |
-   v
-Structured knowledge + source evidence
-   |
-   v
-Top-down question analysis
-   |
-   v
-Knowledge retrieval
-   |
-   v
-Evidence-based answer
-```
+## Current status and limitations
 
-The next major milestone is to make bottom-up discoveries produce traceable facts that the top-down system can retrieve, then evaluate both systems against a repeatable test set.
+The Rust application has working import, analysis, knowledge export, Top-Down retrieval, candidate review and external-observation import commands. Automated Rust tests and release builds have been run successfully during development.
 
-See [top_down/README.md](top_down/README.md) for the current question-answering prototype and [docs/TESTING_AND_DEMO.md](docs/TESTING_AND_DEMO.md) for testing instructions.
+This is still an experimental implementation rather than a complete MediaWiki or production AI system. In particular:
+
+- The Rust wikitext parser is intentionally conservative and is not a full MediaWiki parser.
+- Extraction results and question-answering coverage still need broader parity checks against the Python reference.
+- Candidate facts require validation; extracted candidates should not automatically be treated as verified lore.
+- Full-dump performance, memory use, evidence quality and output parity remain ongoing evaluation work.
+
+Correctness, repeatability and source evidence take priority over speed alone.
+
+## Repository layout
+
+- `rust-version/` — main Rust application and CLI.
+- `rust-engine/` — reusable Rust XML and fact-processing engine.
+- Python project files — original reference implementation and comparison tests.
+- `data/` — local databases, exports, fixtures and source-data locations. The full UESP dump is not committed to Git.
+
