@@ -6,6 +6,7 @@ pub mod database;
 pub mod external;
 pub mod ingestion;
 pub mod knowledge;
+pub mod relationship_comparison;
 pub mod models;
 pub mod top_down;
 pub mod wiki;
