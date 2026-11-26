@@ -229,28 +229,18 @@ def build_dictionary_candidate(path: Path) -> float:
                 ON page_template_parameters_dictionary(dump_id,source_page_id)
         """)
         connection.execute("DROP TABLE page_template_parameters")
-        connection.execute("ALTER TABLE page_template_parameters_dictionary RENAME TO page_template_parameters")
         connection.execute("""
-            CREATE VIEW page_template_parameters_compat AS
-            SELECT p.parameter_id,p.dump_id,p.source_page_id,st.value AS source_title,
-                   p.template_index,tn.value AS template_name,p.parameter_index,
-                   pn.value AS parameter_name,p.is_named,pv.value AS parameter_value,
-                   p.raw_value,p.evidence_text,p.extraction_method
-            FROM page_template_parameters p
-            JOIN source_title_dictionary st ON st.source_title_id=p.source_title_id
-            JOIN template_name_dictionary tn ON tn.template_name_id=p.template_name_id
-            JOIN parameter_name_dictionary pn ON pn.parameter_name_id=p.parameter_name_id
-            JOIN parameter_value_dictionary pv ON pv.parameter_value_id=p.parameter_value_id
+            ALTER TABLE page_template_parameters_dictionary
+            RENAME TO page_template_parameters_dictionary
         """)
-        # Keep the application-facing name as a view with the original 13 columns.
-        connection.execute("DROP VIEW page_template_parameters_compat")
+        # Preserve the original read/query shape through a view with the same name.
         connection.execute("""
-            CREATE VIEW page_template_parameters_compat AS
+            CREATE VIEW page_template_parameters AS
             SELECT p.parameter_id,p.dump_id,p.source_page_id,st.value AS source_title,
                    p.template_index,tn.value AS template_name,p.parameter_index,
                    pn.value AS parameter_name,p.is_named,pv.value AS parameter_value,
                    p.raw_value,p.evidence_text,p.extraction_method
-            FROM page_template_parameters p
+            FROM page_template_parameters_dictionary p
             JOIN source_title_dictionary st ON st.source_title_id=p.source_title_id
             JOIN template_name_dictionary tn ON tn.template_name_id=p.template_name_id
             JOIN parameter_name_dictionary pn ON pn.parameter_name_id=p.parameter_name_id
@@ -306,7 +296,7 @@ def main() -> int:
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
             )
         } - {
-            "page_template_parameters", "template_name_dictionary",
+            "page_template_parameters", "page_template_parameters_dictionary", "template_name_dictionary",
             "parameter_name_dictionary", "parameter_value_dictionary",
             "source_title_dictionary",
         }
