@@ -140,7 +140,11 @@ pub fn print_report(project_root: &Path, database_path: &Path) -> Result<()> {
     }
     let python_export = project_root.join("knowledge_base.json");
     if python_export.is_file() {
-        collect_files(&python_export, project_root, &mut files)?;
+        files.push(StorageFile {
+            category: classify(&python_export, project_root),
+            bytes: fs::metadata(&python_export)?.len(),
+            path: python_export,
+        });
     }
     add_database_sidecars(database_path, project_root, &mut files)?;
     files.sort_by(|left, right| left.path.cmp(&right.path));
