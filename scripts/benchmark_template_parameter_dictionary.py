@@ -257,8 +257,16 @@ def main() -> int:
 
     print(f"Source (read-only): {source}")
     backup(source, baseline_path)
+    print("Compacting baseline copy for a fair schema comparison...")
+    baseline_connection = sqlite3.connect(baseline_path)
+    baseline_vacuum_started = time.perf_counter()
+    try:
+        baseline_connection.execute("VACUUM")
+    finally:
+        baseline_connection.close()
+    baseline_vacuum_seconds = time.perf_counter() - baseline_vacuum_started
     shutil.copy2(baseline_path, candidate_path)
-    print("Inspecting unchanged baseline...")
+    print("Inspecting compacted unchanged baseline...")
     baseline = inspect(baseline_path)
     print("Building dictionary candidate...")
     conversion_seconds = build_dictionary_candidate(candidate_path)
@@ -315,10 +323,11 @@ def main() -> int:
             "preserved_verbatim_columns": [
                 "raw_value", "evidence_text", "extraction_method"
             ],
-            "compatibility_view": "page_template_parameters_compat",
+            "compatibility_view": "page_template_parameters",
             "note": "Read-only schema prototype; Rust write path is not migrated.",
         },
-        "conversion_seconds_including_vacuum": conversion_seconds,
+        "baseline_vacuum_seconds": baseline_vacuum_seconds,
+        "candidate_conversion_seconds_including_vacuum": conversion_seconds,
         "logical_contents_match": logical_match,
         "unaffected_tables_match": unaffected_match,
         "template_parameter_logical_match": parameter_match,
@@ -340,7 +349,8 @@ def main() -> int:
     print(f"Dictionary candidate:{candidate['file_bytes']:>12,} bytes")
     print(f"Space saved:          {saved:+,} bytes")
     print(f"Size reduction:       {reduction:.2f}%")
-    print(f"Conversion + VACUUM:  {conversion_seconds:.3f}s")
+    print(f"Baseline VACUUM:       {baseline_vacuum_seconds:.3f}s")
+    print(f"Candidate conversion:  {conversion_seconds:.3f}s")
     print(f"Other tables match:   {'PASS' if unaffected_match else 'FAIL'}")
     print(f"Parameter rows match: {'PASS' if parameter_match else 'FAIL'}")
     print(f"Integrity checks:     {'PASS' if integrity_pass else 'FAIL'}")
