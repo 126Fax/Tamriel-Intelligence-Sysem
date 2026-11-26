@@ -1,133 +1,120 @@
 # Source-title normalisation experiment
 
 This branch contains a reproducible, isolated prototype for removing duplicated
-`source_title` text from four derived tables:
+`source_title` text from four Rust-derived tables:
 
 - `page_template_parameters`
 - `page_links`
 - `candidate_facts`
 - `entity_candidates`
 
-The candidate stores the source identity as the existing composite key
-`(dump_id, source_page_id)`. It reconstructs the original `source_title`
-column through read-only compatibility views, joining to `pages` on **both**
-key columns. It never resolves a source page by title alone.
+The candidate removes the column from independent copies and reconstructs it
+with a join on **both** `(dump_id, source_page_id)` to `pages(dump_id, page_id)`.
+It never joins source pages by title. The production Rust schema and supplied
+source database are not modified.
 
-## Safety
+## Safety and requirements
 
-- The supplied source database is opened read-only.
-- The script creates a separate baseline copy and candidate copy.
-- `VACUUM`, `ANALYZE`, schema migration and benchmarks run only on those copies.
-- The output directory must not already exist.
-- No Rust production writer or reader is changed by this experiment.
-- Compatibility views preserve the old SELECT shape but are intentionally not writable.
+- Python 3.10+; standard library only, no pip installs.
+- Run commands from the repository root.
+- The source database is opened read-only and copied with SQLite's backup API.
+- `VACUUM`, `ANALYZE`, schema changes and benchmarks run only on copies.
+- Each output directory must be new; existing results are never overwritten.
+- Do not point Rust ingestion/analysis at the candidate database. This is a
+  schema prototype, not a production migration.
 
-## Run it in Codespaces
-
-From the repository root, first check that you are on this branch and that the
-source database exists:
+## 1. Check branch and database
 
 ```bash
 git status --short --branch
-ls -lh data/experiments/lossless-storage/100k-source/tamriel_100k.db
+ls -lh data/database/tamriel_intelligence_rust.db
 ```
 
-If you have a different sample database, substitute its path below. Start with
-the 50k or 100k sample rather than the full dump:
+If you want to start with a 50k/100k experiment database, use its path instead.
+Do not switch branches if `git status` shows uncommitted work you need to keep.
+
+## 2. Audit `ai_pages`
+
+```bash
+python3 scripts/audit_ai_pages_usage.py \
+  --output data/experiments/source-title-normalisation/ai-pages-audit.json
+```
+
+The report scans both `rust-version/src` and `rust-engine/src`. It lists direct
+`ai_pages` references and separately flags possible dynamic SQL, macros,
+`format!`/`concat!`, query-builder and query-execution sites for manual review.
+The second list contains false positives; this is a static audit aid, not a
+complete Rust parser.
+
+## 3. Capture a standalone SQLite baseline
+
+```bash
+python3 scripts/capture_sqlite_baseline.py \
+  --source data/database/tamriel_intelligence_rust.db \
+  --output-dir data/experiments/source-title-normalisation/baseline
+```
+
+The report records the source's SQLite version, journal mode, page size,
+page/freelist counts and WAL/SHM sizes before copying. It then checkpoints WAL
+on the copy if needed, runs `VACUUM`, then `ANALYZE`, and records the compacted
+copy's metrics and integrity checks.
+
+## 4. Run the source-title comparison
 
 ```bash
 python3 scripts/benchmark_source_title_normalisation.py \
-  --source data/experiments/lossless-storage/100k-source/tamriel_100k.db \
-  --output-dir data/experiments/source-title-normalisation/100k
+  --source data/database/tamriel_intelligence_rust.db \
+  --output-dir data/experiments/source-title-normalisation/source-title-test \
+  --repeats 5
 ```
 
-The output directory must be new. If you want to repeat the experiment, choose
-a new output directory (for example `100k-run-2`) so the previous evidence is
-preserved.
+Use a new output directory for every run. The benchmark creates one consistent
+SQLite backup, clones that snapshot for the candidate, then prepares both arms
+with the same `VACUUM` and `ANALYZE` sequence. The candidate drops `source_title`
+from the four tables and reconstructs it through the composite page identity.
 
-Python 3's standard library is sufficient; no additional Python packages are
-required.
+It produces `baseline.sqlite`, `candidate-no-source-title.sqlite` and
+`comparison.json`.
 
-## What the script measures
+## What is validated
 
-### SQLite baseline metadata
+- Every logical row in all four affected tables is reconstructed and compared
+  against the baseline. Records are canonicalised, sorted and SHA-256 hashed;
+  SQLite's implicit row order is never trusted.
+- Fingerprints include evidence, extraction method, confidence, provenance,
+  link destination, display text and reconstructed title.
+- Duplicate page titles across dumps are counted and examples are recorded.
+- A synthetic test proves duplicate titles in different dumps resolve to the
+  correct source page and unresolved link text survives unchanged.
+- `EXPLAIN QUERY PLAN` is captured for baseline direct source-title lookup and
+  candidate join lookup using `(dump_id, source_page_id)`.
+- Repeated per-page lookup and full-table reconstruction timings are recorded.
+- SQLite `integrity_check` and `foreign_key_check` must pass on both copies.
+- Schema checks confirm the candidate has removed `source_title` while
+  retaining `dump_id` and `source_page_id`.
 
-- `SELECT sqlite_version()`
-- `PRAGMA journal_mode`
-- `PRAGMA page_size`
-- `PRAGMA page_count`
-- `PRAGMA freelist_count`
-- Main database, WAL and SHM file sizes
-- Allocated live pages: `(page_count - freelist_count) * page_size`
-- Total allocated pages and freelist bytes
-- `dbstat` B-tree allocated, payload and unused bytes when supported
-- `PRAGMA integrity_check` and `PRAGMA foreign_key_check`
+The experiment fails if any reconstructed fingerprint differs, even when row
+counts match.
 
-The script records the source's existing configuration, then makes an independent
-baseline copy and applies the same `journal_mode=DELETE`, `VACUUM`, `ANALYZE`
-sequence to the baseline and candidate before comparing them. This avoids
-crediting the schema change for pre-existing freelist fragmentation.
+## Storage measurements
 
-### Candidate schema
+The report keeps these measures separate:
 
-Each physical candidate table is stored under a `*_normalised` name without
-`source_title`. A view under the original table name reconstructs the original
-column layout by joining:
+1. **Physical:** main database file bytes; WAL and SHM sidecars are reported
+   separately.
+2. **Allocated:** `(page_count - freelist_count) * page_size`.
+3. **Logical payload:** summed `dbstat.payload`, where SQLite supports `dbstat`.
 
-```sql
-ON pages.dump_id = derived.dump_id
-AND pages.page_id = derived.source_page_id
-```
-
-The unresolved wiki-link destination and its display text remain untouched.
-This experiment does not yet add integer destination-page references.
-
-### Integrity and behavioural equivalence
-
-The report checks:
-
-- SQLite integrity and foreign-key constraints.
-- Deterministically ordered SHA-256 fingerprints for every reconstructed row
-  in all four affected logical tables.
-- Deterministic fingerprints for every unaffected user table.
-- Source-title lookups.
-- Fact retrieval with source-title reconstruction.
-- Wiki-link traversal, including unresolved destinations.
-- A synthetic edge case with the same page title in two different dumps and
-  an unresolved link whose destination text must survive.
-- Query plans and seven-run median timings for source-title reconstruction
-  and a representative fact lookup.
-
-A matching row count alone is not considered sufficient. The candidate only
-passes if the reconstructed logical records and behavioural checks match.
-
-### ai_pages static audit
-
-The JSON report includes every literal `ai_pages` reference found in the Rust
-source, with file and line number, plus likely SQL-construction points such as
-`format!`, `prepare` and query-builder calls for manual review. This is a
-static source scan, not proof that no dynamically assembled reference exists.
-
-## Output files
-
-The new output directory contains:
-
-- `baseline.sqlite` — compacted unchanged copy.
-- `candidate-source-title-normalised.sqlite` — isolated candidate copy.
-- `comparison.json` — full configuration, size, query-plan, timing, audit and
-  integrity report.
-
-The script exits with code 0 only when all acceptance checks pass; otherwise
-it exits non-zero and leaves both copies and the report available for inspection.
+SQLite version and relevant pragmas are recorded. Query plans are captured
+after `ANALYZE`. The original source configuration is recorded before copying.
 
 ## Important limitations
 
-This is a schema/storage prototype, not a production migration. The Rust
-analysis writer still expects physical `source_title` columns, and the
-compatibility views are read-only. Do not point the normal Rust ingestion or
-analysis pipeline at the candidate database. Do not copy the candidate over
-your working database.
+The benchmark does not update Rust writers, Top-Down queries or exports. It
+uses a direct schema prototype to measure the storage and read-reconstruction
+trade-off. If the result is promising, production migration will need to update
+all writers/readers together and rerun behavioural equivalence tests.
 
-The experiment intentionally changes one independent variable: source-title
-storage. Page size, `WITHOUT ROWID`, dictionary encoding, WAL policy and
-relationship/link representation remain separate experiments.
+The experiment changes only source-title storage. Page size, WAL policy,
+`WITHOUT ROWID`, dictionary encoding and wiki-link destination references remain
+separate experiments.
