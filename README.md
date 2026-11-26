@@ -1,21 +1,33 @@
 # Tamriel Intelligence System
 
-## Project overview
+An evidence-focused, Rust-first lore intelligence project built around the UESP
+(The Unofficial Elder Scrolls Pages) wiki dump. It combines a Bottom-Up data
+pipeline with Top-Down retrieval, using SQLite to retain source pages,
+extracted structures and supporting evidence.
 
-Rust is the primary implementation and default execution path for processing
-the full UESP dump. Its promotion to the repository's default branch is
-subject to review; Python remains available as the reference implementation
-while parity is evaluated.
-The implementations use separate databases and are not yet feature-equivalent.
+Rust is the primary development and execution path. The earlier Python
+implementation remains in the repository as a reference implementation for
+comparison and regression testing. The two implementations use separate
+databases and exports and are not yet feature-equivalent.
 
-- **Bottom-up analysis:** imports wiki pages, records structure and evidence,
-  and extracts conservative relationship candidates.
-- **Top-down retrieval:** answers a limited set of questions from those
-  structured records and source pages.
+## What it does
+
+- **Streaming ingestion:** imports the compressed MediaWiki XML dump into
+  SQLite without loading the full dump into memory.
+- **Bottom-Up analysis:** extracts page structure, templates, parameters,
+  links and conservative relationship candidates.
+- **Evidence and provenance:** retains source-page references and supporting
+  text so extracted records can be checked against the original wiki material.
+- **Top-Down retrieval:** supports structured lookups, evidence queries,
+  entity counts, page search and a bounded knowledge overview.
+- **AI-readable preparation:** optionally builds resumable, derived page
+  records for later AI use without replacing the original source records.
+- **Knowledge review:** includes a first-pass rule-based cleaner; its output
+  is a review aid, not an automatic guarantee that a claim is true.
 
 ## Rust quick start
 
-From the repository root, build and run the Rust tests:
+From the repository root, run the test suites and build the Rust application:
 
 ```bash
 cargo test --manifest-path rust-engine/Cargo.toml
@@ -23,35 +35,40 @@ cargo test --manifest-path rust-version/Cargo.toml
 cargo build --release --manifest-path rust-version/Cargo.toml
 ```
 
-If the local Rust database already exists, inspect it and try a question
-without re-importing the dump:
+If the Rust database has already been imported, inspect it and try a question:
 
 ```bash
 cargo run --release --manifest-path rust-version/Cargo.toml -- stats
-cargo run --release --manifest-path rust-version/Cargo.toml -- ask "Where do dragons live?"
+cargo run --release --manifest-path rust-version/Cargo.toml -- ask "What happened in Saarthal?"
 ```
 
-The Rust database is `data/database/tamriel_intelligence_rust.db`, and its
-knowledge export is `rust-version/data/knowledge_base.json`. These generated
-files are local and are not stored in Git.
+## Import and analyse the UESP dump
 
-## Full UESP data
-
-The compressed dump is kept locally under `data/raw/` and is not stored in Git.
-On a fresh checkout, import and analyse it with:
+The compressed dump belongs in `data/raw/` and is not committed to Git. To
+import and analyse it on a fresh checkout:
 
 ```bash
 cargo run --release --manifest-path rust-version/Cargo.toml -- run
 ```
 
-`--skip-import` skips only XML import; it still rebuilds all analysis tables.
-See [rust-version/README.md](rust-version/README.md) for batch settings, commands
-and current Rust limitations.
+For a smaller initial test, limit the import:
+
+```bash
+cargo run --release --manifest-path rust-version/Cargo.toml -- run --limit 1000
+```
+
+Useful commands, batch-size settings, benchmark notes and current limitations
+are documented in [rust-version/README.md](rust-version/README.md).
+
+The Rust database defaults to
+`data/database/tamriel_intelligence_rust.db`; its knowledge export defaults
+to `rust-version/data/knowledge_base.json`. Generated databases and exports
+are local data and are not stored in Git.
 
 ## Python reference implementation
 
-Python remains available during the Rust migration. Set up its environment and
-run its tests with:
+Python remains available for comparison and regression testing. To set up its
+environment and run its tests:
 
 ```bash
 python3 -m venv .venv
@@ -60,31 +77,23 @@ python -m pip install -r requirements.txt
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-The Python demos, cleaner and pipeline remain documented in
+The Python implementation has its own database and exports. Do not treat its
+data as interchangeable with the Rust data. Python documentation remains in
 [docs/TESTING_AND_DEMO.md](docs/TESTING_AND_DEMO.md) and
-[docs/FULL_DUMP_PIPELINE.md](docs/FULL_DUMP_PIPELINE.md). Python should not be
-removed until the Rust parser, question handling, cleaner and tests cover the
-needed behavior.
+[docs/FULL_DUMP_PIPELINE.md](docs/FULL_DUMP_PIPELINE.md).
 
-## Migration status and promotion
+## Current status and limitations
 
-The Rust pipeline imports the compressed dump, stores source pages and
-evidence-backed extraction results in its own SQLite database, and supports
-evidence-aware retrieval. AI-readable page preparation is an optional,
-resumable stage. Python remains in the repository with its own tests and CI;
-do not treat its database or exports as interchangeable with Rust's.
+The Rust pipeline is the primary project path, but it is not a complete
+feature-for-feature replacement for Python. Current parity checks cover a
+shared synthetic fixture and a small sample of real pages, not the entire
+UESP dump. The Rust wikitext parser and question handling are narrower than
+their Python counterparts, and cleaner results still require review.
 
-Promotion is intended to happen through a reviewed pull request to `main`,
-without rewriting history or deleting the Python reference. The completed
-full-dump benchmark is historical, not a controlled comparison; rerun
-benchmarks only against a separate database copy.
+The recorded full-dump benchmark is historical rather than a controlled
+comparison. For benchmark work, use a separate database copy and record the
+environment and input dump details.
 
-Parity currently covers a shared synthetic fixture and a small set of real
-pages, not the entire dump. The Rust wikitext parser and question handling
-remain narrower than Python's. Review [Rust/Python parity and migration
-status](docs/RUST_PYTHON_PARITY.md) for the comparison scope, known gaps, and
-promotion checks.
-
-See [docs/TESTING_AND_DEMO.md](docs/TESTING_AND_DEMO.md) for test instructions
-and [rust-version/README.md](rust-version/README.md) for Rust commands and
-limitations.
+See [docs/RUST_PYTHON_PARITY.md](docs/RUST_PYTHON_PARITY.md) for the parity
+scope, known gaps and migration safeguards. See
+[docs/TESTING_AND_DEMO.md](docs/TESTING_AND_DEMO.md) for test instructions.
