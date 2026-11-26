@@ -2,15 +2,31 @@ use crate::models::CandidateFact;
 use regex::{Regex, RegexSet};
 use std::sync::LazyLock;
 
-static FACT_PATTERNS: LazyLock<Vec<(&'static str, Regex, f64)>> = LazyLock::new(|| {
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct RelationshipRule {
+    pub id: String,
+    pub relationship: String,
+    pub prefilter: String,
+    pub pattern: String,
+    pub confidence: f64,
+}
+
+#[derive(Debug)]
+struct CompiledRelationshipRule {
+    relationship: String,
+    pattern: Regex,
+    confidence: f64,
+}
+
+static LEGACY_FACT_PATTERNS: LazyLock<Vec<(&'static str, Regex, f64)>> = LazyLock::new(|| {
     vec![
     ("province", Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+(?:a|an)\s+province\s+of\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(), 0.95),
     ("lives in", Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+lives?\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(), 0.90),
     ("located in", Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+located\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(), 0.90),
 ]
 });
-// These mandatory phrases are ordered to match FACT_PATTERNS; the original regexes still capture facts.
-static FACT_PATTERN_PREFILTERS: LazyLock<RegexSet> = LazyLock::new(|| {
+// Retained as a regression reference for the original three-pattern extractor.
+static LEGACY_FACT_PATTERN_PREFILTERS: LazyLock<RegexSet> = LazyLock::new(|| {
     RegexSet::new([
         r"(?i)is\s+(?:a|an)\s+province\s+of",
         r"(?i)lives?\s+in",
@@ -322,10 +338,47 @@ struct ProvincePatterns {
 #[derive(Debug)]
 pub struct FactExtractor {
     provinces: Vec<ProvincePatterns>,
+    rules: Vec<CompiledRelationshipRule>,
+    prefilters: RegexSet,
 }
 
 impl FactExtractor {
+    /// Build the default extractor using the version-controlled JSON ruleset.
     pub fn new(provinces: &[String]) -> Self {
+        let rules: Vec<RelationshipRule> = serde_json::from_str(include_str!("../data/reference/relationship_rules.json"))
+            .expect("bundled relationship ruleset must be valid JSON");
+        Self::from_rules(provinces, rules)
+            .expect("bundled relationship ruleset must contain valid regular expressions")
+    }
+
+    /// Build an extractor from an externally loaded ruleset.
+    pub fn from_rules(provinces: &[String], rules: Vec<RelationshipRule>) -> anyhow::Result<Self> {
+        if rules.is_empty() {
+            anyhow::bail!("relationship ruleset must contain at least one rule");
+        }
+        let mut ids = std::collections::HashSet::new();
+        let mut compiled = Vec::with_capacity(rules.len());
+        let mut prefilters = Vec::with_capacity(rules.len());
+        for rule in rules {
+            if rule.id.trim().is_empty() || !ids.insert(rule.id.clone()) {
+                anyhow::bail!("relationship rule IDs must be non-empty and unique: {}", rule.id);
+            }
+            if rule.relationship.trim().is_empty() || rule.prefilter.trim().is_empty() {
+                anyhow::bail!("relationship rule '{}' has an empty relationship or prefilter", rule.id);
+            }
+            if !(0.0..=1.0).contains(&rule.confidence) {
+                anyhow::bail!("relationship rule '{}' confidence must be between 0 and 1", rule.id);
+            }
+            prefilters.push(rule.prefilter.clone());
+            compiled.push(CompiledRelationshipRule {
+                relationship: rule.relationship,
+                pattern: Regex::new(&rule.pattern)
+                    .map_err(|error| anyhow::anyhow!("invalid pattern in relationship rule '{}': {error}", rule.id))?,
+                confidence: rule.confidence,
+            });
+        }
+        let prefilters = RegexSet::new(&prefilters)
+            .map_err(|error| anyhow::anyhow!("invalid relationship prefilter: {error}"))?;
         let provinces = provinces
             .iter()
             .map(|province| {
@@ -341,7 +394,7 @@ impl FactExtractor {
                 }
             })
             .collect();
-        Self { provinces }
+        Ok(Self { provinces, rules: compiled, prefilters })
     }
 
     pub fn extract_facts(&self, plain_text: &str, page_id: i64, title: &str) -> Vec<CandidateFact> {
@@ -380,16 +433,16 @@ impl FactExtractor {
             if sentence.is_empty() {
                 continue;
             }
-            let possible_patterns = FACT_PATTERN_PREFILTERS.matches(&sentence);
-            for (pattern_index, (relationship, pattern, confidence)) in
-                FACT_PATTERNS.iter().enumerate()
-            {
+            let possible_patterns = self.prefilters.matches(&sentence);
+            for (pattern_index, rule) in self.rules.iter().enumerate() {
                 if !possible_patterns.matched(pattern_index) {
                     continue;
                 }
-                for captures in pattern.captures_iter(&sentence) {
-                    let subject = clean_entity(captures.name("subject").unwrap().as_str());
-                    let object = clean_entity(captures.name("object").unwrap().as_str());
+                for captures in rule.pattern.captures_iter(&sentence) {
+                    let Some(subject_capture) = captures.name("subject") else { continue; };
+                    let Some(object_capture) = captures.name("object") else { continue; };
+                    let subject = clean_entity(subject_capture.as_str());
+                    let object = clean_entity(object_capture.as_str());
                     if subject.is_empty()
                         || object.is_empty()
                         || subject.eq_ignore_ascii_case(&object)
@@ -400,11 +453,11 @@ impl FactExtractor {
                         source_page_id: page_id,
                         source_page: title.to_string(),
                         subject,
-                        relationship: (*relationship).to_string(),
+                        relationship: rule.relationship.clone(),
                         object,
                         evidence: sentence.chars().take(2000).collect(),
                         extraction_method: "explicit_sentence_pattern_v1".to_string(),
-                        confidence: *confidence,
+                        confidence: rule.confidence,
                     });
                 }
             }
@@ -555,7 +608,7 @@ mod tests {
             if sentence.is_empty() {
                 continue;
             }
-            for (relationship, pattern, confidence) in FACT_PATTERNS.iter() {
+            for (relationship, pattern, confidence) in LEGACY_FACT_PATTERNS.iter() {
                 for captures in pattern.captures_iter(&sentence) {
                     let subject = legacy_clean_entity(captures.name("subject").unwrap().as_str());
                     let object = legacy_clean_entity(captures.name("object").unwrap().as_str());
