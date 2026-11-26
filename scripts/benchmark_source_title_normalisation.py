@@ -1,664 +1,233 @@
 #!/usr/bin/env python3
-"""Audit SQLite storage and compare source-title normalisation without touching the source.
-
-Creates an independent, VACUUMed/ANALYZEd baseline and a candidate that removes
-four duplicated source_title columns. Read compatibility views reconstruct the
-original logical rows through the composite (dump_id, source_page_id) key.
-"""
-from __future__ import annotations
-
+"""Compare the existing source_title columns with composite-key title joins."""
 import argparse
-import hashlib
 import json
-import re
 import shutil
 import sqlite3
 import statistics
 import time
 from pathlib import Path
-from typing import Any
+from sqlite_experiment_common import (backup_database, canonical_hash, capture_metrics,
+                                      capture_source_metadata, prepare_database)
 
-SOURCE_TABLES = {
-    "page_template_parameters": {
-        "physical": "page_template_parameters_normalised",
-        "key": "parameter_id",
-        "columns": [
-            "parameter_id", "dump_id", "source_page_id", "source_title",
-            "template_index", "template_name", "parameter_index", "parameter_name",
-            "is_named", "parameter_value", "raw_value", "evidence_text",
-            "extraction_method",
-        ],
-        "storage_columns": [
-            "parameter_id", "dump_id", "source_page_id", "template_index",
-            "template_name", "parameter_index", "parameter_name", "is_named",
-            "parameter_value", "raw_value", "evidence_text", "extraction_method",
-        ],
-        "create": """CREATE TABLE page_template_parameters_normalised (
-            parameter_id INTEGER PRIMARY KEY, dump_id INTEGER NOT NULL,
-            source_page_id INTEGER NOT NULL, template_index INTEGER NOT NULL,
-            template_name TEXT NOT NULL, parameter_index INTEGER NOT NULL,
-            parameter_name TEXT NOT NULL, is_named INTEGER NOT NULL,
-            parameter_value TEXT NOT NULL, raw_value TEXT NOT NULL,
-            evidence_text TEXT NOT NULL, extraction_method TEXT NOT NULL,
-            FOREIGN KEY (dump_id,source_page_id)
-              REFERENCES pages(dump_id,page_id) ON DELETE CASCADE
-        )""",
-        "indexes": [
-            "CREATE INDEX idx_template_parameters_lookup ON page_template_parameters_normalised(template_name,parameter_name)",
-            "CREATE INDEX idx_template_parameter_name_value ON page_template_parameters_normalised(parameter_name COLLATE NOCASE,parameter_value COLLATE NOCASE)",
-            "CREATE INDEX idx_template_parameters_source ON page_template_parameters_normalised(dump_id,source_page_id)",
-        ],
-        "select": """SELECT t.parameter_id,t.dump_id,t.source_page_id,p.title AS source_title,
-            t.template_index,t.template_name,t.parameter_index,t.parameter_name,
-            t.is_named,t.parameter_value,t.raw_value,t.evidence_text,t.extraction_method
-            FROM page_template_parameters_normalised t
-            JOIN pages p ON p.dump_id=t.dump_id AND p.page_id=t.source_page_id""",
-    },
-    "page_links": {
-        "physical": "page_links_normalised",
-        "key": "link_id",
-        "columns": ["link_id", "dump_id", "source_page_id", "source_title", "destination", "display_text"],
-        "storage_columns": ["link_id", "dump_id", "source_page_id", "destination", "display_text"],
-        "create": """CREATE TABLE page_links_normalised (
-            link_id INTEGER PRIMARY KEY, dump_id INTEGER NOT NULL,
-            source_page_id INTEGER NOT NULL, destination TEXT NOT NULL,
-            display_text TEXT NOT NULL,
-            FOREIGN KEY (dump_id,source_page_id)
-              REFERENCES pages(dump_id,page_id) ON DELETE CASCADE
-        )""",
-        "indexes": [
-            "CREATE INDEX idx_page_links_destination ON page_links_normalised(destination)",
-            "CREATE INDEX idx_page_links_source ON page_links_normalised(dump_id,source_page_id)",
-        ],
-        "select": """SELECT t.link_id,t.dump_id,t.source_page_id,p.title AS source_title,
-            t.destination,t.display_text
-            FROM page_links_normalised t
-            JOIN pages p ON p.dump_id=t.dump_id AND p.page_id=t.source_page_id""",
-    },
-    "candidate_facts": {
-        "physical": "candidate_facts_normalised",
-        "key": "fact_id",
-        "columns": ["fact_id", "dump_id", "source_page_id", "source_title", "subject", "relationship", "object", "evidence_text", "extraction_method", "confidence"],
-        "storage_columns": ["fact_id", "dump_id", "source_page_id", "subject", "relationship", "object", "evidence_text", "extraction_method", "confidence"],
-        "create": """CREATE TABLE candidate_facts_normalised (
-            fact_id INTEGER PRIMARY KEY, dump_id INTEGER NOT NULL,
-            source_page_id INTEGER NOT NULL, subject TEXT NOT NULL,
-            relationship TEXT NOT NULL, object TEXT NOT NULL,
-            evidence_text TEXT NOT NULL, extraction_method TEXT NOT NULL,
-            confidence REAL NOT NULL,
-            FOREIGN KEY (dump_id,source_page_id)
-              REFERENCES pages(dump_id,page_id) ON DELETE CASCADE,
-            UNIQUE(dump_id,source_page_id,subject,relationship,object,evidence_text)
-        )""",
-        "indexes": [
-            "CREATE INDEX idx_candidate_facts_lookup ON candidate_facts_normalised(relationship,subject,object)",
-        ],
-        "select": """SELECT t.fact_id,t.dump_id,t.source_page_id,p.title AS source_title,
-            t.subject,t.relationship,t.object,t.evidence_text,t.extraction_method,t.confidence
-            FROM candidate_facts_normalised t
-            JOIN pages p ON p.dump_id=t.dump_id AND p.page_id=t.source_page_id""",
-    },
-    "entity_candidates": {
-        "physical": "entity_candidates_normalised",
-        "key": "entity_candidate_id",
-        "columns": ["entity_candidate_id", "dump_id", "source_page_id", "source_title", "entity_type", "value", "evidence_text", "extraction_method", "source_type", "source_id", "mod_id"],
-        "storage_columns": ["entity_candidate_id", "dump_id", "source_page_id", "entity_type", "value", "evidence_text", "extraction_method", "source_type", "source_id", "mod_id"],
-        "create": """CREATE TABLE entity_candidates_normalised (
-            entity_candidate_id INTEGER PRIMARY KEY, dump_id INTEGER NOT NULL,
-            source_page_id INTEGER NOT NULL, entity_type TEXT NOT NULL
-              CHECK(entity_type IN ('race','occupation','book')),
-            value TEXT NOT NULL, evidence_text TEXT NOT NULL,
-            extraction_method TEXT NOT NULL,
-            source_type TEXT NOT NULL DEFAULT 'uesp'
-              CHECK(source_type IN ('uesp','user','mod')),
-            source_id TEXT NOT NULL, mod_id TEXT,
-            CHECK(source_type != 'mod' OR mod_id IS NOT NULL),
-            FOREIGN KEY (dump_id,source_page_id)
-              REFERENCES pages(dump_id,page_id) ON DELETE CASCADE
-        )""",
-        "indexes": [
-            "CREATE INDEX idx_entity_candidates_type_value ON entity_candidates_normalised(entity_type,value COLLATE NOCASE)",
-            "CREATE INDEX idx_entity_candidates_source ON entity_candidates_normalised(source_type,source_id,mod_id)",
-        ],
-        "select": """SELECT t.entity_candidate_id,t.dump_id,t.source_page_id,p.title AS source_title,
-            t.entity_type,t.value,t.evidence_text,t.extraction_method,t.source_type,t.source_id,t.mod_id
-            FROM entity_candidates_normalised t
-            JOIN pages p ON p.dump_id=t.dump_id AND p.page_id=t.source_page_id""",
-    },
+TABLES = {
+    "page_template_parameters": "parameter_id",
+    "page_links": "link_id",
+    "candidate_facts": "fact_id",
+    "entity_candidates": "entity_candidate_id",
 }
 
 
-def qid(value: str) -> str:
-    return '"' + value.replace('"', '""') + '"'
+def columns(db, table):
+    return [r[1] for r in db.execute(f'PRAGMA table_info("{table}")')]
 
 
-def canonical(value: Any) -> Any:
-    if isinstance(value, bytes):
-        import base64
-        return {"blob_base64": base64.b64encode(value).decode("ascii")}
-    return value
+def records(db, table, candidate):
+    cols = columns(db, table)
+    if not cols:
+        raise RuntimeError(f"Missing table: {table}")
+    if "source_title" in cols:
+        sql = f'SELECT * FROM "{table}"'
+    elif candidate:
+        fields = ",".join(f't."{c}"' for c in cols)
+        sql = (f'SELECT {fields},p.title AS source_title FROM "{table}" t '
+               'JOIN pages p ON p.dump_id=t.dump_id AND p.page_id=t.source_page_id')
+    else:
+        raise RuntimeError(f"Baseline missing {table}.source_title")
+    cur = db.execute(sql)
+    names = [d[0] for d in cur.description]
+    return [dict(zip(names, row)) for row in cur.fetchall()]
 
 
-def fingerprint_rows(connection: sqlite3.Connection, sql: str, order_by: str) -> dict[str, Any]:
-    digest = hashlib.sha256()
-    count = 0
-    cursor = connection.execute(f"{sql} ORDER BY {order_by}")
-    while True:
-        batch = cursor.fetchmany(1000)
-        if not batch:
-            break
-        for row in batch:
-            encoded = json.dumps([canonical(v) for v in row], ensure_ascii=False,
-                                 separators=(",", ":"), sort_keys=True).encode("utf-8")
-            digest.update(len(encoded).to_bytes(8, "big"))
-            digest.update(encoded)
-            count += 1
-    return {"rows": count, "sha256": digest.hexdigest()}
+def page_keys(db, table):
+    return [tuple(r) for r in db.execute(
+        f'SELECT DISTINCT dump_id,source_page_id FROM "{table}" '
+        'ORDER BY dump_id,source_page_id LIMIT 100')]
 
 
-def table_fingerprint(connection: sqlite3.Connection, table: str) -> dict[str, Any]:
-    info = connection.execute(f"PRAGMA table_info({qid(table)})").fetchall()
-    columns = [row[1] for row in info]
-    if not columns:
-        raise RuntimeError(f"Missing table {table!r}")
-    # Ordering every column is deterministic even for tables without a declared PK.
-    order = ",".join(str(i + 1) for i in range(len(columns)))
-    return fingerprint_rows(connection, f"SELECT * FROM {qid(table)}", order)
+def explain(db, table, candidate):
+    if candidate:
+        sql = (f'SELECT p.title FROM "{table}" t JOIN pages p '
+               'ON p.dump_id=t.dump_id AND p.page_id=t.source_page_id '
+               'WHERE t.dump_id=? AND t.source_page_id=?')
+    else:
+        sql = f'SELECT source_title FROM "{table}" WHERE dump_id=? AND source_page_id=?'
+    return [r[3] for r in db.execute("EXPLAIN QUERY PLAN " + sql, (1, 1))]
 
 
-def file_inventory(path: Path) -> dict[str, int]:
-    result = {}
-    for label, candidate in (
-        ("main", path), ("wal", Path(str(path) + "-wal")),
-        ("shm", Path(str(path) + "-shm")),
-    ):
-        result[label] = candidate.stat().st_size if candidate.exists() else 0
-    result["total_sidecars_bytes"] = result["wal"] + result["shm"]
-    result["physical_total_bytes"] = result["main"] + result["wal"] + result["shm"]
-    return result
+def time_page_lookups(db, table, candidate, keys, repeats):
+    if candidate:
+        sql = (f'SELECT p.title FROM "{table}" t JOIN pages p '
+               'ON p.dump_id=t.dump_id AND p.page_id=t.source_page_id '
+               'WHERE t.dump_id=? AND t.source_page_id=?')
+    else:
+        sql = f'SELECT source_title FROM "{table}" WHERE dump_id=? AND source_page_id=?'
+    times, count = [], 0
+    for _ in range(repeats):
+        start, count = time.perf_counter(), 0
+        for key in keys:
+            count += len(db.execute(sql, key).fetchall())
+        times.append(time.perf_counter() - start)
+    return {"keys": len(keys), "rows_per_run": count, "runs_seconds": times,
+            "median_seconds": statistics.median(times)}
 
 
-def dbstat(connection: sqlite3.Connection) -> dict[str, Any] | None:
+def time_full_scan(db, table, candidate, repeats):
+    if candidate:
+        sql = (f'SELECT t.dump_id,t.source_page_id,p.title FROM "{table}" t '
+               'JOIN pages p ON p.dump_id=t.dump_id AND p.page_id=t.source_page_id '
+               'ORDER BY t.dump_id,t.source_page_id,t.rowid')
+    else:
+        sql = (f'SELECT dump_id,source_page_id,source_title FROM "{table}" '
+               'ORDER BY dump_id,source_page_id,rowid')
+    times, count = [], 0
+    for _ in range(repeats):
+        start = time.perf_counter()
+        rows = db.execute(sql).fetchall()
+        times.append(time.perf_counter() - start)
+        count = len(rows)
+    return {"rows": count, "runs_seconds": times, "median_seconds": statistics.median(times)}
+
+
+def duplicate_titles(db):
+    count = db.execute(
+        "SELECT COUNT(*) FROM (SELECT title FROM pages GROUP BY title "
+        "HAVING COUNT(DISTINCT dump_id)>1)").fetchone()[0]
+    examples = [dict(zip(("title", "dump_count", "page_count"), r)) for r in db.execute(
+        "SELECT title,COUNT(DISTINCT dump_id),COUNT(*) FROM pages GROUP BY title "
+        "HAVING COUNT(DISTINCT dump_id)>1 ORDER BY title LIMIT 100")]
+    return count, examples
+
+
+
+def duplicate_title_edge_case_test():
+    """Prove composite joins handle duplicate titles and unresolved links."""
+    db = sqlite3.connect(":memory:")
     try:
-        rows = connection.execute("""
-            SELECT d.name,COALESCE(m.type,'internal'),SUM(d.pgsize),
-                   SUM(d.payload),SUM(d.unused)
-            FROM dbstat d LEFT JOIN sqlite_master m ON m.name=d.name
-            GROUP BY d.name,m.type ORDER BY SUM(d.pgsize) DESC,d.name
-        """).fetchall()
-    except sqlite3.Error:
-        return None
-    return {
-        "objects": [
-            {"name": r[0], "type": r[1], "allocated_bytes": r[2],
-             "payload_bytes": r[3], "unused_bytes": r[4]} for r in rows
-        ],
-        "allocated_bytes": sum(r[2] for r in rows),
-        "payload_bytes": sum(r[3] for r in rows),
-        "unused_bytes": sum(r[4] for r in rows),
-    }
-
-
-def inspect_database(path: Path) -> dict[str, Any]:
-    connection = sqlite3.connect(f"file:{path.resolve().as_posix()}?mode=ro", uri=True)
-    try:
-        pragma = lambda name: connection.execute(f"PRAGMA {name}").fetchone()[0]
-        version = connection.execute("SELECT sqlite_version()").fetchone()[0]
-        page_size, page_count, free_count = (
-            int(pragma("page_size")), int(pragma("page_count")), int(pragma("freelist_count"))
-        )
-        objects = dbstat(connection)
-        return {
-            "sqlite_version": version,
-            "journal_mode": pragma("journal_mode"),
-            "page_size": page_size,
-            "page_count": page_count,
-            "freelist_count": free_count,
-            "physical_files": file_inventory(path),
-            "allocated_live_pages_bytes": (page_count - free_count) * page_size,
-            "allocated_all_pages_bytes": page_count * page_size,
-            "freelist_bytes": free_count * page_size,
-            "dbstat": objects,
-            "integrity_check": connection.execute("PRAGMA integrity_check").fetchone()[0],
-            "foreign_key_errors": len(connection.execute("PRAGMA foreign_key_check").fetchall()),
-        }
-    finally:
-        connection.close()
-
-
-def backup_read_only(source: Path, destination: Path) -> None:
-    src = sqlite3.connect(f"file:{source.resolve().as_posix()}?mode=ro", uri=True)
-    dst = sqlite3.connect(destination)
-    try:
-        src.backup(dst)
-    finally:
-        dst.close()
-        src.close()
-
-
-def compact_and_analyse(path: Path) -> float:
-    connection = sqlite3.connect(path)
-    started = time.perf_counter()
-    try:
-        # Use the same rollback-journal mode for all experiment copies.
-        connection.execute("PRAGMA journal_mode=DELETE")
-        connection.execute("VACUUM")
-        connection.execute("ANALYZE")
-    finally:
-        connection.close()
-    return time.perf_counter() - started
-
-
-def migrate_remove_source_titles(path: Path) -> float:
-    connection = sqlite3.connect(path)
-    started = time.perf_counter()
-    try:
-        connection.execute("PRAGMA foreign_keys=ON")
-        connection.execute("BEGIN IMMEDIATE")
-        for logical_name, spec in SOURCE_TABLES.items():
-            columns = {row[1] for row in connection.execute(
-                f"PRAGMA table_info({qid(logical_name)})"
-            )}
-            if not columns:
-                raise RuntimeError(f"Required table {logical_name!r} is missing")
-            if "source_title" not in columns:
-                raise RuntimeError(f"{logical_name} has no source_title column; wrong source schema?")
-            old_count = connection.execute(
-                f"SELECT COUNT(*) FROM {qid(logical_name)}"
-            ).fetchone()[0]
-            for index in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL",
-                (logical_name,),
-            ).fetchall():
-                connection.execute(f"DROP INDEX {qid(index[0])}")
-            connection.execute(
-                f"ALTER TABLE {qid(logical_name)} RENAME TO {qid(spec['physical'] + '_old')}"
-            )
-            connection.execute(spec["create"])
-            old_name = qid(spec["physical"] + "_old")
-            new_cols = ",".join(qid(c) for c in spec["storage_columns"])
-            connection.execute(
-                f"INSERT INTO {qid(spec['physical'])} ({new_cols}) "
-                f"SELECT {new_cols} FROM {old_name}"
-            )
-            new_count = connection.execute(
-                f"SELECT COUNT(*) FROM {qid(spec['physical'])}"
-            ).fetchone()[0]
-            if old_count != new_count:
-                raise RuntimeError(f"{logical_name} row count changed: {old_count} -> {new_count}")
-            connection.execute(f"DROP TABLE {old_name}")
-            for index_sql in spec["indexes"]:
-                connection.execute(index_sql)
-            # Keep the old read interface. The source title is reconstructed using
-            # both dump_id and source_page_id, never by title-only matching.
-            select_columns = ",".join(
-                f"t.{qid(c)}" if c != "source_title" else "p.title AS source_title"
-                for c in spec["columns"]
-            )
-            connection.execute(
-                f"CREATE VIEW {qid(logical_name)} AS SELECT {select_columns} "
-                f"FROM {qid(spec['physical'])} t JOIN pages p "
-                "ON p.dump_id=t.dump_id AND p.page_id=t.source_page_id"
-            )
-        connection.commit()
-        return time.perf_counter() - started
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
-
-
-def logical_checks(baseline: sqlite3.Connection, candidate: sqlite3.Connection) -> dict[str, Any]:
-    source_hashes = {}
-    for name, spec in SOURCE_TABLES.items():
-        order = spec["key"]
-        left = fingerprint_rows(baseline, f"SELECT * FROM {qid(name)}", order)
-        right = fingerprint_rows(candidate, f"SELECT * FROM {qid(name)}", order)
-        source_hashes[name] = {"baseline": left, "candidate": right, "match": left == right}
-
-    base_tables = {
-        row[0] for row in baseline.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-        )
-    }
-    candidate_tables = {
-        row[0] for row in candidate.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-        )
-    }
-    unaffected = sorted(base_tables - set(SOURCE_TABLES))
-    unaffected_checks = {}
-    for table in unaffected:
-        left, right = table_fingerprint(baseline, table), table_fingerprint(candidate, table)
-        unaffected_checks[table] = {"match": left == right, "baseline": left, "candidate": right}
-
-    # Explicit application-shaped reconstruction checks.
-    behavioural = {}
-    queries = {
-        "source_title_lookup": (
-            """SELECT t.dump_id,t.source_page_id,t.source_title
-               FROM page_template_parameters t""",
-            "1,2,3",
-        ),
-        "fact_retrieval": (
-            """SELECT fact_id,dump_id,source_page_id,source_title,subject,relationship,
-                      object,evidence_text,extraction_method,confidence FROM candidate_facts""",
-            "1",
-        ),
-        "link_traversal": (
-            """SELECT l.link_id,l.dump_id,l.source_page_id,l.source_title,
-                      l.destination,l.display_text,p.title AS resolved_destination
-               FROM page_links l
-               LEFT JOIN pages p ON p.dump_id=l.dump_id AND p.title=l.destination""",
-            "1",
-        ),
-    }
-    for name, (sql, order) in queries.items():
-        left, right = fingerprint_rows(baseline, sql, order), fingerprint_rows(candidate, sql, order)
-        behavioural[name] = {"match": left == right, "baseline": left, "candidate": right}
-
-    return {
-        "logical_source_tables": source_hashes,
-        "unaffected_tables": unaffected_checks,
-        "behavioural_queries": behavioural,
-        "all_logical_checks_match": (
-            all(v["match"] for v in source_hashes.values())
-            and all(v["match"] for v in unaffected_checks.values())
-            and all(v["match"] for v in behavioural.values())
-        ),
-    }
-
-
-def query_performance(connection: sqlite3.Connection, label: str) -> dict[str, Any]:
-    # Choose a real source key from the largest source table, if available.
-    row = connection.execute(
-        "SELECT dump_id,source_page_id FROM page_template_parameters ORDER BY parameter_id LIMIT 1"
-    ).fetchone()
-    if row is None:
-        row = connection.execute(
-            "SELECT dump_id,page_id FROM pages ORDER BY dump_id,page_id LIMIT 1"
-        ).fetchone()
-    if row is None:
-        return {"label": label, "skipped": "database has no source pages"}
-    dump_id, page_id = row
-    query = """SELECT f.fact_id,f.subject,f.relationship,f.object,f.evidence_text,
-                      p.title AS source_title
-               FROM candidate_facts f
-               JOIN pages p ON p.dump_id=f.dump_id AND p.page_id=f.source_page_id
-               WHERE f.dump_id=? AND f.source_page_id=?
-               ORDER BY f.fact_id"""
-    plan = [list(r) for r in connection.execute("EXPLAIN QUERY PLAN " + query, (dump_id, page_id))]
-    timings = []
-    for _ in range(7):
-        started = time.perf_counter()
-        connection.execute(query, (dump_id, page_id)).fetchall()
-        timings.append(time.perf_counter() - started)
-    return {
-        "label": label, "test_key": {"dump_id": dump_id, "page_id": page_id},
-        "explain_query_plan": plan, "runs_seconds": timings,
-        "median_seconds": statistics.median(timings),
-    }
-
-
-def ai_pages_audit(root: Path) -> dict[str, Any]:
-    source_root = root / "rust-version" / "src"
-    direct = []
-    dynamic_indicators = []
-    if not source_root.is_dir():
-        return {"error": f"Rust source directory not found: {source_root}"}
-    for path in sorted(source_root.rglob("*.rs")):
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-        for number, line in enumerate(lines, 1):
-            if "ai_pages" in line:
-                direct.append({"file": str(path.relative_to(root)), "line": number,
-                               "text": line.strip()[:300]})
-            if re.search(r"\b(format!|query_as|query_builder|prepare_cached|prepare)\b", line):
-                dynamic_indicators.append({"file": str(path.relative_to(root)), "line": number,
-                                           "text": line.strip()[:220]})
-    return {
-        "direct_ai_pages_references": direct,
-        "sql_construction_review_points": dynamic_indicators,
-        "note": "Static source scan. Review SQL construction points manually; dynamically assembled identifiers may not contain the literal table name.",
-        "direct_reference_count": len(direct),
-        "sql_construction_indicator_count": len(dynamic_indicators),
-    }
-
-
-def source_title_lookup_benchmark(connection: sqlite3.Connection, label: str) -> dict[str, Any]:
-    key = connection.execute(
-        "SELECT dump_id,source_page_id FROM page_template_parameters ORDER BY parameter_id LIMIT 1"
-    ).fetchone()
-    if key is None:
-        key = connection.execute("SELECT dump_id,page_id FROM pages ORDER BY dump_id,page_id LIMIT 1").fetchone()
-    if key is None:
-        return {"label": label, "skipped": "database has no pages"}
-    dump_id, page_id = key
-    results = {}
-    for name in SOURCE_TABLES:
-        sql = "SELECT source_title FROM " + qid(name) + " WHERE dump_id=? AND source_page_id=?"
-        plan = [list(r) for r in connection.execute("EXPLAIN QUERY PLAN " + sql, (dump_id, page_id))]
-        runs = []
-        for _ in range(7):
-            started = time.perf_counter()
-            connection.execute(sql, (dump_id, page_id)).fetchall()
-            runs.append(time.perf_counter() - started)
-        results[name] = {"explain_query_plan": plan, "runs_seconds": runs, "median_seconds": statistics.median(runs)}
-    return {"label": label, "test_key": {"dump_id": dump_id, "page_id": page_id}, "tables": results}
-
-def duplicate_title_edge_case_test() -> dict[str, Any]:
-    connection = sqlite3.connect(":memory:")
-    try:
-        connection.execute("PRAGMA foreign_keys=ON")
-        connection.executescript("""
-            CREATE TABLE source_dumps(dump_id INTEGER PRIMARY KEY,source_name TEXT NOT NULL);
-            CREATE TABLE pages(
-                dump_id INTEGER NOT NULL,page_id INTEGER NOT NULL,title TEXT NOT NULL,
-                namespace_id INTEGER NOT NULL,namespace_name TEXT NOT NULL,
-                revision_id INTEGER,text_length INTEGER NOT NULL,page_text TEXT NOT NULL,
-                PRIMARY KEY(dump_id,page_id),
-                FOREIGN KEY(dump_id) REFERENCES source_dumps(dump_id));
-            CREATE TABLE page_links(link_id INTEGER PRIMARY KEY,dump_id INTEGER NOT NULL,
-                source_page_id INTEGER NOT NULL,source_title TEXT NOT NULL,
-                destination TEXT NOT NULL,display_text TEXT NOT NULL,
-                FOREIGN KEY(dump_id,source_page_id) REFERENCES pages(dump_id,page_id));
-            CREATE INDEX idx_page_links_destination ON page_links(destination);
-            CREATE INDEX idx_page_links_source ON page_links(dump_id,source_page_id);
-            INSERT INTO source_dumps VALUES(1,'dump-one'),(2,'dump-two');
-            INSERT INTO pages VALUES
-                (1,10,'Shared title',0,'Main',1,5,'first'),
-                (2,10,'Shared title',0,'Main',2,6,'second'),
-                (1,11,'Target',0,'Main',3,1,'x');
+        db.executescript("""
+            CREATE TABLE pages(dump_id INTEGER,page_id INTEGER,title TEXT,PRIMARY KEY(dump_id,page_id));
+            CREATE TABLE source_rows(dump_id INTEGER,source_page_id INTEGER,source_title TEXT,value TEXT);
+            CREATE TABLE page_links(dump_id INTEGER,source_page_id INTEGER,source_title TEXT,destination TEXT,display_text TEXT);
+            INSERT INTO pages VALUES (1,7,'Shared title'),(2,7,'Shared title'),(1,8,'Target');
+            INSERT INTO source_rows VALUES (1,7,'Shared title','from dump one'),(2,7,'Shared title','from dump two');
             INSERT INTO page_links VALUES
-                (1,1,10,'Shared title','Target','first target'),
-                (2,2,10,'Shared title','Missing page','unresolved text');
+              (1,7,'Shared title','Target','resolved label'),
+              (2,7,'Shared title','Missing page','unresolved label');
         """)
-        # Apply the same composite-key reconstruction principle to the link table.
-        connection.execute("DROP INDEX idx_page_links_destination")
-        connection.execute("DROP INDEX idx_page_links_source")
-        connection.execute("ALTER TABLE page_links RENAME TO page_links_old")
-        connection.execute("""CREATE TABLE page_links_normalised(
-            link_id INTEGER PRIMARY KEY,dump_id INTEGER NOT NULL,source_page_id INTEGER NOT NULL,
-            destination TEXT NOT NULL,display_text TEXT NOT NULL,
-            FOREIGN KEY(dump_id,source_page_id) REFERENCES pages(dump_id,page_id))""")
-        connection.execute("""INSERT INTO page_links_normalised
-            SELECT link_id,dump_id,source_page_id,destination,display_text FROM page_links_old""")
-        connection.execute("DROP TABLE page_links_old")
-        connection.execute("CREATE INDEX idx_page_links_destination ON page_links_normalised(destination)")
-        connection.execute("CREATE INDEX idx_page_links_source ON page_links_normalised(dump_id,source_page_id)")
-        connection.execute("""CREATE VIEW page_links AS
-            SELECT l.link_id,l.dump_id,l.source_page_id,p.title AS source_title,
-                   l.destination,l.display_text
-            FROM page_links_normalised l JOIN pages p
-            ON p.dump_id=l.dump_id AND p.page_id=l.source_page_id""")
-        rows = connection.execute(
-            "SELECT dump_id,source_title,destination,display_text FROM page_links ORDER BY link_id"
-        ).fetchall()
-        expected = [
-            (1, "Shared title", "Target", "first target"),
-            (2, "Shared title", "Missing page", "unresolved text"),
-        ]
-        # Also prove title resolution is dump-scoped and the unresolved text survives.
-        resolved = connection.execute("""
-            SELECT l.dump_id,l.destination,p.page_text
+        expected_rows = [(1, 7, "Shared title", "from dump one"),
+                         (2, 7, "Shared title", "from dump two")]
+        rows = db.execute("""SELECT r.dump_id,r.source_page_id,p.title,r.value
+            FROM source_rows r JOIN pages p
+            ON p.dump_id=r.dump_id AND p.page_id=r.source_page_id
+            ORDER BY r.dump_id,r.source_page_id""").fetchall()
+        expected_links = [(1, "Target", "resolved label", "Target"),
+                          (2, "Missing page", "unresolved label", None)]
+        links = db.execute("""SELECT l.dump_id,l.destination,l.display_text,p.title
             FROM page_links l LEFT JOIN pages p
-              ON p.dump_id=l.dump_id AND p.title=l.destination
-            ORDER BY l.link_id
-        """).fetchall()
-        passed = rows == expected and resolved == [(1, "Target", "x"), (2, "Missing page", None)]
-        return {"passed": passed, "duplicate_title_rows": rows,
-                "dump_scoped_link_resolution": resolved}
+            ON p.dump_id=l.dump_id AND p.title=l.destination
+            ORDER BY l.dump_id""").fetchall()
+        return {"passed": rows == expected_rows and links == expected_links,
+                "duplicate_title_source_rows": rows, "resolved_and_unresolved_links": links}
     finally:
-        connection.close()
+        db.close()
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", required=True, type=Path,
-                        help="Existing Rust SQLite database (opened read-only)")
-    parser.add_argument("--output-dir", required=True, type=Path,
-                        help="New output directory; must not already exist")
-    args = parser.parse_args()
-    source, output = args.source.resolve(), args.output_dir.resolve()
-    if not source.is_file():
-        parser.error(f"Source database does not exist: {source}")
-    if output.exists():
-        parser.error(f"Output directory already exists: {output}")
-    output.mkdir(parents=True)
-
-    source_connection = sqlite3.connect(f"file:{source.as_posix()}?mode=ro", uri=True)
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--source", required=True, type=Path)
+    p.add_argument("--output-dir", required=True, type=Path)
+    p.add_argument("--repeats", type=int, default=5)
+    a = p.parse_args()
+    source, out = a.source.resolve(), a.output_dir.resolve()
+    if not source.is_file(): p.error(f"Database not found: {source}")
+    if out.exists(): p.error(f"Output directory already exists: {out}")
+    if a.repeats < 1: p.error("--repeats must be at least 1")
+    out.mkdir(parents=True)
+    source_meta = capture_source_metadata(source)
+    base_path, cand_path = out / "baseline.sqlite", out / "candidate-no-source-title.sqlite"
+    backup_database(source, base_path)
+    shutil.copy2(base_path, cand_path)  # exact same snapshot for both arms
+    base_prep, cand_prep = prepare_database(base_path), prepare_database(cand_path)
+    base, cand = sqlite3.connect(base_path), sqlite3.connect(cand_path)
     try:
-        required = {r[0] for r in source_connection.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        )}
-        missing = sorted({"pages", *SOURCE_TABLES} - required)
-        if missing:
-            parser.error("Source database is missing required tables: " + ", ".join(missing))
-    finally:
-        source_connection.close()
+        for table in TABLES:
+            if "source_title" not in columns(cand, table):
+                raise RuntimeError(f"Expected {table}.source_title in source schema")
+        duplicate_count, duplicate_examples = duplicate_titles(cand)
+        cand.execute("PRAGMA foreign_keys=ON")
+        for table in TABLES:
+            cand.execute(f'ALTER TABLE "{table}" DROP COLUMN source_title')
+        cand.commit()
+        cand.execute("VACUUM")
+        cand.execute("ANALYZE")
+        cand.commit()
 
-    source_metadata = inspect_database(source)
-    baseline_path = output / "baseline.sqlite"
-    candidate_path = output / "candidate-source-title-normalised.sqlite"
-    backup_read_only(source, baseline_path)
-    baseline_maintenance_seconds = compact_and_analyse(baseline_path)
-    shutil.copy2(baseline_path, candidate_path)
-    candidate_migration_seconds = migrate_remove_source_titles(candidate_path)
-    candidate_maintenance_seconds = compact_and_analyse(candidate_path)
-
-    baseline = inspect_database(baseline_path)
-    candidate = inspect_database(candidate_path)
-    base_conn = sqlite3.connect(f"file:{baseline_path.as_posix()}?mode=ro", uri=True)
-    cand_conn = sqlite3.connect(f"file:{candidate_path.as_posix()}?mode=ro", uri=True)
-    try:
-        checks = logical_checks(base_conn, cand_conn)
-        performance = {
-            "fact_retrieval_join": {
-                "baseline": query_performance(base_conn, "baseline"),
-                "candidate": query_performance(cand_conn, "candidate"),
-            },
-            "source_title_reconstruction": {
-                "baseline": source_title_lookup_benchmark(base_conn, "baseline"),
-                "candidate": source_title_lookup_benchmark(cand_conn, "candidate"),
-            },
-        }
-        query_plans = {
-            "source_title_lookup": {
-                "baseline": [list(r) for r in base_conn.execute(
-                    "EXPLAIN QUERY PLAN SELECT t.source_title FROM page_template_parameters t WHERE t.dump_id=? AND t.source_page_id=?",
-                    (1, 1))],
-                "candidate": [list(r) for r in cand_conn.execute(
-                    "EXPLAIN QUERY PLAN SELECT t.source_title FROM page_template_parameters t WHERE t.dump_id=? AND t.source_page_id=?",
-                    (1, 1))],
+        comparisons, fingerprints_pass = {}, True
+        for table in TABLES:
+            old, new = records(base, table, False), records(cand, table, True)
+            old_hash, old_n = canonical_hash(old)
+            new_hash, new_n = canonical_hash(new)
+            match = old_hash == new_hash and old_n == new_n
+            fingerprints_pass &= match
+            keys = page_keys(base, table)
+            comparisons[table] = {
+                "baseline_rows": old_n, "candidate_reconstructed_rows": new_n,
+                "baseline_sha256": old_hash, "candidate_sha256": new_hash,
+                "logical_records_match": match,
+                "baseline_source_page_query_plan": explain(base, table, False),
+                "candidate_source_page_query_plan": explain(cand, table, True),
+                "baseline_page_lookup": time_page_lookups(base, table, False, keys, a.repeats),
+                "candidate_page_join_lookup": time_page_lookups(cand, table, True, keys, a.repeats),
+                "baseline_full_reconstruction_scan": time_full_scan(base, table, False, a.repeats),
+                "candidate_full_reconstruction_join": time_full_scan(cand, table, True, a.repeats),
             }
-        }
+        base_metrics, cand_metrics = capture_metrics(base_path), capture_metrics(cand_path)
+        schema = {t: {"baseline_has_source_title": "source_title" in columns(base, t),
+                      "candidate_has_source_title": "source_title" in columns(cand, t),
+                      "candidate_has_dump_and_page_ids": all(x in columns(cand, t) for x in ("dump_id", "source_page_id"))}
+                 for t in TABLES}
+        schema_pass = all(x["baseline_has_source_title"] and not x["candidate_has_source_title"]
+                          and x["candidate_has_dump_and_page_ids"] for x in schema.values())
+        base_ok = base_metrics["integrity_check"] == ["ok"] and not base_metrics["foreign_key_errors"]
+        cand_ok = cand_metrics["integrity_check"] == ["ok"] and not cand_metrics["foreign_key_errors"]
+        edge_case = duplicate_title_edge_case_test()
+        passed = fingerprints_pass and schema_pass and base_ok and cand_ok and edge_case["passed"]
+        report = {
+            "experiment": "source_title_normalisation_prototype", "source_database": str(source),
+            "source_opened_read_only": True, "source_modified": False,
+            "sqlite_version": sqlite3.sqlite_version, "source_metadata_before_copy": source_meta,
+            "identity_rule": "Join on both (dump_id, source_page_id) = pages(dump_id, page_id); never join by title.",
+            "preparation": {"baseline": base_prep, "candidate": cand_prep, "candidate_after_schema_change": "VACUUM then ANALYZE"},
+            "duplicate_title_cases_total": duplicate_count, "duplicate_title_examples_first_100": duplicate_examples,
+            "schema_checks": schema, "table_comparisons": comparisons,
+            "duplicate_title_and_unresolved_link_edge_case": edge_case,
+            "baseline_metrics": base_metrics, "candidate_metrics": cand_metrics,
+            "storage": {
+                "baseline_physical_bytes": base_metrics["physical_main_database_bytes"],
+                "candidate_physical_bytes": cand_metrics["physical_main_database_bytes"],
+                "physical_bytes_saved": base_metrics["physical_main_database_bytes"] - cand_metrics["physical_main_database_bytes"],
+                "baseline_allocated_bytes": base_metrics["allocated_page_bytes_excluding_freelist"],
+                "candidate_allocated_bytes": cand_metrics["allocated_page_bytes_excluding_freelist"],
+                "baseline_logical_payload_bytes": base_metrics["logical_payload_bytes"],
+                "candidate_logical_payload_bytes": cand_metrics["logical_payload_bytes"]},
+            "validation": {"fingerprints_match": fingerprints_pass, "schema_pass": schema_pass,
+                           "baseline_integrity_pass": base_ok, "candidate_integrity_pass": cand_ok,
+                           "overall_pass": passed}}
+        report_path = out / "comparison.json"
+        report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        print(f"SQLite: {sqlite3.sqlite_version}; duplicate titles across dumps: {duplicate_count}")
+        for table, result in comparisons.items():
+            print(f"{table}: {result['baseline_rows']:,} rows; fingerprint {'PASS' if result['logical_records_match'] else 'FAIL'}")
+            print(f"  page lookup baseline/join: {result['baseline_page_lookup']['median_seconds']:.6f}s / {result['candidate_page_join_lookup']['median_seconds']:.6f}s")
+            print(f"  full scan baseline/join:  {result['baseline_full_reconstruction_scan']['median_seconds']:.6f}s / {result['candidate_full_reconstruction_join']['median_seconds']:.6f}s")
+        print(f"Physical bytes saved: {base_metrics['physical_main_database_bytes'] - cand_metrics['physical_main_database_bytes']:,}")
+        print(f"Allocated bytes saved: {base_metrics['allocated_page_bytes_excluding_freelist'] - cand_metrics['allocated_page_bytes_excluding_freelist']:,}")
+        print(f"Duplicate-title/unresolved-link edge case: {'PASS' if edge_case['passed'] else 'FAIL'}")
+        print(f"Validation: {'PASS' if passed else 'FAIL'}; report: {report_path}")
+        return 0 if passed else 1
     finally:
-        base_conn.close()
-        cand_conn.close()
-
-    source_titles_removed = {}
-    for logical, spec in SOURCE_TABLES.items():
-        c = sqlite3.connect(f"file:{candidate_path.as_posix()}?mode=ro", uri=True)
-        try:
-            source_titles_removed[logical] = {
-                "physical_table": spec["physical"],
-                "source_title_column_removed": "source_title" not in {
-                    r[1] for r in c.execute(f"PRAGMA table_info({qid(spec['physical'])})")
-                },
-                "compatibility_view_exists": c.execute(
-                    "SELECT type FROM sqlite_master WHERE name=?", (logical,)
-                ).fetchone() == ("view",),
-            }
-        finally:
-            c.close()
-
-    edge_case = duplicate_title_edge_case_test()
-    integrity_pass = (
-        baseline["integrity_check"] == "ok" and candidate["integrity_check"] == "ok"
-        and baseline["foreign_key_errors"] == 0 and candidate["foreign_key_errors"] == 0
-    )
-    schema_pass = all(v["source_title_column_removed"] and v["compatibility_view_exists"]
-                      for v in source_titles_removed.values())
-    passed = checks["all_logical_checks_match"] and integrity_pass and schema_pass and edge_case["passed"]
-    size_saved = baseline["physical_files"]["physical_total_bytes"] - candidate["physical_files"]["physical_total_bytes"]
-    report = {
-        "experiment": "source_title_normalisation",
-        "source_database": str(source),
-        "source_opened_read_only": True,
-        "original_source_modified": False,
-        "source_configuration_before_copy": source_metadata,
-        "maintenance": {
-            "baseline_vacuum_then_analyze_seconds": baseline_maintenance_seconds,
-            "candidate_vacuum_then_analyze_seconds": candidate_maintenance_seconds,
-            "candidate_schema_migration_seconds": candidate_migration_seconds,
-            "sequence": ["VACUUM", "ANALYZE", "capture query plans", "benchmark"],
-        },
-        "baseline": baseline,
-        "candidate": candidate,
-        "size_comparison": {
-            "baseline_physical_bytes_including_sidecars": baseline["physical_files"]["physical_total_bytes"],
-            "candidate_physical_bytes_including_sidecars": candidate["physical_files"]["physical_total_bytes"],
-            "bytes_saved": size_saved,
-            "reduction_percent": (size_saved / baseline["physical_files"]["physical_total_bytes"] * 100)
-                if baseline["physical_files"]["physical_total_bytes"] else 0.0,
-        },
-        "source_title_columns": source_titles_removed,
-        "logical_and_behavioural_validation": checks,
-        "query_performance": performance,
-        "query_plans": query_plans,
-        "duplicate_title_and_unresolved_link_edge_case": edge_case,
-        "ai_pages_static_audit": ai_pages_audit(Path(__file__).resolve().parents[1]),
-        "integrity_checks_pass": integrity_pass,
-        "all_acceptance_checks_pass": passed,
-        "notes": [
-            "This is an isolated schema prototype. Rust production writers and readers are not migrated.",
-            "Compatibility views preserve SELECT access to the original logical columns; views are not writable.",
-            "All source-title reconstruction joins use both dump_id and source_page_id.",
-            "The source database is opened read-only; all maintenance and migration occurs on independent copies.",
-            "The source-title and fact lookup benchmarks use an actual key from the database.",
-            "SQLite dbstat payload is B-tree payload, not a compressed logical-text estimate.",
-        ],
-    }
-    report_path = output / "comparison.json"
-    report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print("\nSource-title normalisation experiment")
-    print("=====================================")
-    print(f"Source (read-only): {source}")
-    print(f"SQLite version: {source_metadata['sqlite_version']}")
-    print(f"Baseline physical size:  {baseline['physical_files']['physical_total_bytes']:,} bytes")
-    print(f"Candidate physical size: {candidate['physical_files']['physical_total_bytes']:,} bytes")
-    print(f"Space saved: {size_saved:+,} bytes ({report['size_comparison']['reduction_percent']:.2f}%)")
-    print(f"Baseline VACUUM + ANALYZE: {baseline_maintenance_seconds:.3f}s")
-    print(f"Candidate migration:       {candidate_migration_seconds:.3f}s")
-    print(f"Candidate VACUUM + ANALYZE:{candidate_maintenance_seconds:>10.3f}s")
-    print(f"Logical/behavioural checks: {'PASS' if checks['all_logical_checks_match'] else 'FAIL'}")
-    print(f"Duplicate-title edge case: {'PASS' if edge_case['passed'] else 'FAIL'}")
-    print(f"SQLite/FK integrity:       {'PASS' if integrity_pass else 'FAIL'}")
-    print(f"All acceptance checks:     {'PASS' if passed else 'FAIL'}")
-    print(f"Report: {report_path}")
-    print(f"Baseline copy: {baseline_path}")
-    print(f"Candidate copy: {candidate_path}")
-    return 0 if passed else 1
+        base.close()
+        cand.close()
 
 
 if __name__ == "__main__":
