@@ -62,7 +62,7 @@
       "id": "native-to",
       "relationship": "native to",
       "prefilter": "is\\s+native\\s+to|are\\s+native\\s+to",
-      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:is|are)\\s+native\\s+to\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
+      "pattern": "(?i)\\b(?P<subject>[A-Z][\\w' -]{0,70}?)\\s+(?:is|are|was|were)\\s+native\\s+to\\s+(?P<object>[A-Z][\\w' -]{0,70}?)(?:[.!?;]|$)",
       "confidence": 0.91
     },
     {
