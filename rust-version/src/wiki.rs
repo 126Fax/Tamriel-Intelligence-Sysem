@@ -3,6 +3,13 @@ use regex::{Regex, RegexSet};
 use std::sync::LazyLock;
 
 #[derive(Debug, Clone, serde::Deserialize)]
+pub struct RelationshipRuleset {
+    pub schema_version: u32,
+    pub description: String,
+    pub rules: Vec<RelationshipRule>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct RelationshipRule {
     pub id: String,
     pub relationship: String,
@@ -24,15 +31,6 @@ static LEGACY_FACT_PATTERNS: LazyLock<Vec<(&'static str, Regex, f64)>> = LazyLoc
     ("lives in", Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+lives?\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(), 0.90),
     ("located in", Regex::new(r"(?i)\b(?P<subject>[A-Z][\w' -]{0,70}?)\s+is\s+located\s+in\s+(?P<object>[A-Z][\w' -]{0,70}?)(?:[.!?;]|$)").unwrap(), 0.90),
 ]
-});
-// Retained as a regression reference for the original three-pattern extractor.
-static LEGACY_FACT_PATTERN_PREFILTERS: LazyLock<RegexSet> = LazyLock::new(|| {
-    RegexSet::new([
-        r"(?i)is\s+(?:a|an)\s+province\s+of",
-        r"(?i)lives?\s+in",
-        r"(?i)is\s+located\s+in",
-    ])
-    .unwrap()
 });
 static EXTERNAL_LINK_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\[https?://[^\s\]]+(?:\s+([^\]]+))?\]").unwrap());
@@ -345,9 +343,10 @@ pub struct FactExtractor {
 impl FactExtractor {
     /// Build the default extractor using the version-controlled JSON ruleset.
     pub fn new(provinces: &[String]) -> Self {
-        let rules: Vec<RelationshipRule> = serde_json::from_str(include_str!("../data/reference/relationship_rules.json"))
+        let ruleset: RelationshipRuleset = serde_json::from_str(include_str!("../data/reference/relationship_rules.json"))
             .expect("bundled relationship ruleset must be valid JSON");
-        Self::from_rules(provinces, rules)
+        assert_eq!(ruleset.schema_version, 1, "unsupported bundled relationship ruleset version");
+        Self::from_rules(provinces, ruleset.rules)
             .expect("bundled relationship ruleset must contain valid regular expressions")
     }
 
@@ -737,4 +736,40 @@ mod tests {
             ]
         );
     }
+    #[test]
+    fn configurable_rules_extract_relationships_across_lore_categories() {
+        let provinces = vec!["Skyrim".to_string()];
+        let extractor = FactExtractor::new(&provinces);
+        let text = concat!(
+            "Whiterun is the capital of Skyrim. ",
+            "Jagar Tharn was born in the Imperial City. ",
+            "Ancano is a member of the Thalmor. ",
+            "Vivec is associated with the Tribunal. ",
+            "Pelagius is married to Elisif. ",
+            "The Dwemer were native to Tamriel."
+        );
+        let facts = extractor.extract_facts(text, 99, "Relationship examples");
+        let pairs = facts.iter().map(|fact| (fact.subject.as_str(), fact.relationship.as_str(), fact.object.as_str())).collect::<Vec<_>>();
+        assert!(pairs.contains(&("Whiterun", "capital of", "Skyrim")), "{pairs:?}");
+        assert!(pairs.contains(&("Jagar Tharn", "born in", "Imperial City")), "{pairs:?}");
+        assert!(pairs.contains(&("Ancano", "member of", "Thalmor")), "{pairs:?}");
+        assert!(pairs.contains(&("Vivec", "associated with", "Tribunal")), "{pairs:?}");
+        assert!(pairs.contains(&("Pelagius", "married to", "Elisif")), "{pairs:?}");
+        assert!(pairs.contains(&("Dwemer", "native to", "Tamriel")), "{pairs:?}");
+        assert!(facts.iter().all(|fact| !fact.evidence.is_empty()));
+        assert!(facts.iter().all(|fact| fact.extraction_method == "explicit_sentence_pattern_v1"));
+    }
+
+    #[test]
+    fn invalid_relationship_rules_are_rejected() {
+        let rules = vec![RelationshipRule {
+            id: "bad-pattern".to_string(),
+            relationship: "example".to_string(),
+            prefilter: "example".to_string(),
+            pattern: "(?P<subject>broken".to_string(),
+            confidence: 0.5,
+        }];
+        assert!(FactExtractor::from_rules(&[], rules).is_err());
+    }
+
 }
