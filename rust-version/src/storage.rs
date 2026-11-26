@@ -95,9 +95,9 @@ fn database_stats(path: &Path) -> Result<Option<DatabaseStats>> {
     }
     let connection = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
         .with_context(|| format!("opening database read-only: {}", path.display()))?;
-    let page_size: u64 = connection.query_row("PRAGMA page_size", [], |row| row.get(0))?;
-    let page_count: u64 = connection.query_row("PRAGMA page_count", [], |row| row.get(0))?;
-    let free_pages: u64 = connection.query_row("PRAGMA freelist_count", [], |row| row.get(0))?;
+    let page_size: i64 = connection.query_row("PRAGMA page_size", [], |row| row.get(0))?;
+    let page_count: i64 = connection.query_row("PRAGMA page_count", [], |row| row.get(0))?;
+    let free_pages: i64 = connection.query_row("PRAGMA freelist_count", [], |row| row.get(0))?;
 
     let tables = [
         "source_dumps",
@@ -119,21 +119,26 @@ fn database_stats(path: &Path) -> Result<Option<DatabaseStats>> {
         )?;
         if exists {
             let sql = format!("SELECT COUNT(*) FROM \"{table}\"");
-            let count: u64 = connection.query_row(&sql, [], |row| row.get(0))?;
-            table_rows.push((table, count));
+            let count: i64 = connection.query_row(&sql, [], |row| row.get(0))?;
+            table_rows.push((table, count.max(0) as u64));
         }
     }
 
     Ok(Some(DatabaseStats {
-        page_size,
-        page_count,
-        free_pages,
+        page_size: page_size.max(0) as u64,
+        page_count: page_count.max(0) as u64,
+        free_pages: free_pages.max(0) as u64,
         table_rows,
     }))
 }
 
 /// Print a read-only inventory of the source dump, SQLite files and generated data.
 pub fn print_report(project_root: &Path, database_path: &Path) -> Result<()> {
+    let database_path = if database_path.is_absolute() {
+        database_path.to_path_buf()
+    } else {
+        project_root.join(database_path)
+    };
     let mut files = Vec::new();
     for relative in ["data/raw", "data/database", "rust-version/data"] {
         collect_files(&project_root.join(relative), project_root, &mut files)?;
@@ -146,7 +151,7 @@ pub fn print_report(project_root: &Path, database_path: &Path) -> Result<()> {
             path: python_export,
         });
     }
-    add_database_sidecars(database_path, project_root, &mut files)?;
+    add_database_sidecars(&database_path, project_root, &mut files)?;
     files.sort_by(|left, right| left.path.cmp(&right.path));
 
     let mut totals = BTreeMap::<&str, u64>::new();
@@ -182,7 +187,7 @@ pub fn print_report(project_root: &Path, database_path: &Path) -> Result<()> {
 
     println!("Rust SQLite database details:");
     println!("  Path: {}", database_path.display());
-    match database_stats(database_path)? {
+    match database_stats(&database_path)? {
         Some(stats) => {
             let allocated = stats.page_size.saturating_mul(stats.page_count);
             let free = stats.page_size.saturating_mul(stats.free_pages);
