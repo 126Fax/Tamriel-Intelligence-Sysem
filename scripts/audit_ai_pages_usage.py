@@ -16,7 +16,7 @@ DIRECT = re.compile(r"ai_pages", re.IGNORECASE)
 DYNAMIC = re.compile(
     r"\b(format!|concat!|include_str!|macro_rules!|sqlx::query|query_as|query_scalar|QueryBuilder|query_builder|sea_query|diesel::|sql!)|"
     r"\.prepare(?:_cached)?\s*\(|\.query(?:_row|_map)?\s*\(|\.execute\s*\(|"
-    r"execute_batch\s*\()",
+    r"execute_batch\s*\(",
     re.IGNORECASE,
 )
 SQL_WORDS = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE|FROM|JOIN|CREATE TABLE|ALTER TABLE)\b", re.IGNORECASE)
