@@ -86,7 +86,7 @@ python3 scripts/benchmark_template_parameter_dictionary.py \\
   --output-dir data/experiments/lossless-storage/5k-template-dictionary
 ```
 
-The script creates independent baseline and candidate copies. It never writes to the source database. The candidate is rebuilt and compacted with `VACUUM`; its total size therefore includes the dictionary tables, their indexes, the normalised parameter table and the compatibility view's underlying storage.
+The script creates independent baseline and candidate copies. It never writes to the source database. For a fair schema comparison, it first VACUUM-compacts the baseline copy, then clones that compacted baseline for the candidate. The candidate is rebuilt and VACUUM-compacted too; this prevents the earlier 1.69% physical-compaction saving from being incorrectly credited to dictionary normalisation. Its total size includes the dictionary tables, their indexes and the normalised parameter table.
 
 The report records file size, per-object `dbstat` allocations, conversion time, logical SHA-256 comparison, SQLite integrity and foreign-key checks.
 
