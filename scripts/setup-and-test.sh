@@ -18,7 +18,7 @@ step "Checking system requirements"
 command -v curl >/dev/null 2>&1 || fail "curl is required to install Rust."
 command -v python3 >/dev/null 2>&1 || fail "Python 3 is required for the Python reference tests."
 
-if ! command -v rustc >/dev/null 2>&1 || ! command -v cargo >/dev/null 2>&1; then
+if ! command -v rustup >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1 || ! command -v cargo >/dev/null 2>&1; then
   step "Rust not found - installing stable Rust with rustup"
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default --component clippy --component rustfmt
 fi
