@@ -1,0 +1,144 @@
+{
+  "source_name": "extraction-parity.fixture",
+  "pages": [
+    {
+      "page_id": 7,
+      "title": "Example Settlement",
+      "namespace": 0,
+      "revision_id": 107,
+      "text": "'''Example Settlement''' is located in [[Skyrim|the northern province]].\r\n== History ==\r\nThe [[Nords|Nords]] live in [[Skyrim]].\r\n* ''First'' event\n* Second event <ref name=\"citation\">Source details.</ref>\n{{Location_Summary\n| name = Example Settlement\n| region = {{Region|north|name=Solitude}}\n| positional value\n| empty = \n}}\n{{Year|4E 201}} {{Year|4E 202}}\n[[Category:Cities]]\n[https://example.invalid/source Example source]",
+      "expected": {
+        "template_counts": {
+          "location summary": 1,
+          "region": 1,
+          "year": 2
+        },
+        "template_parameters": [
+          {"template": "location summary", "name": "name", "named": true, "value": "Example Settlement"},
+          {"template": "location summary", "name": "1", "named": false, "value": "positional value"},
+          {"template": "region", "name": "1", "named": false, "value": "north"},
+          {"template": "region", "name": "name", "named": true, "value": "Solitude"},
+          {"template": "year", "name": "1", "named": false, "value": "4E 201"},
+          {"template": "year", "name": "1", "named": false, "value": "4E 202"}
+        ],
+        "links": [
+          {"destination": "Skyrim", "display_text": "the northern province"},
+          {"destination": "Nords", "display_text": "Nords"},
+          {"destination": "Skyrim", "display_text": "Skyrim"},
+          {"destination": "Category:Cities", "display_text": "Category:Cities"}
+        ],
+        "headings": ["History"],
+        "reference_count": 1,
+        "categories": ["Cities"],
+        "external_urls": ["https://example.invalid/source"],
+        "text_contains": ["First event", "Second event"],
+        "facts": [
+          {"subject": "Example Settlement", "relationship": "located in", "object": "northern province", "evidence": "Example Settlement is located in the northern province.", "extraction_method": "explicit_sentence_pattern_v1", "confidence": 0.9},
+          {"subject": "Nords", "relationship": "lives in", "object": "Skyrim", "evidence": "The Nords live in Skyrim.", "extraction_method": "explicit_sentence_pattern_v1", "confidence": 0.9}
+        ],
+        "typed_candidates": []
+      }
+    },
+    {
+      "page_id": 8,
+      "title": "The Nord Scholar",
+      "namespace": 0,
+      "revision_id": 108,
+      "text": "{{Character Summary\n| race = [[Nord|Nord]]\t\n| occupation = Scholar\n| profession = Historian\n| species = \n| job =\n}}\nA Nord lives in [[Skyrim]].",
+      "expected": {
+        "template_counts": {"character summary": 1},
+        "template_parameters": [
+          {"template": "character summary", "name": "race", "named": true, "value": "Nord"},
+          {"template": "character summary", "name": "occupation", "named": true, "value": "Scholar"},
+          {"template": "character summary", "name": "profession", "named": true, "value": "Historian"}
+        ],
+        "links": [
+          {"destination": "Nord", "display_text": "Nord"},
+          {"destination": "Skyrim", "display_text": "Skyrim"}
+        ],
+        "headings": [],
+        "reference_count": 0,
+        "categories": [],
+        "external_urls": [],
+        "text_contains": ["A Nord lives in Skyrim."],
+        "facts": [
+          {"subject": "Nord", "relationship": "lives in", "object": "Skyrim", "evidence": "A Nord lives in Skyrim.", "extraction_method": "explicit_sentence_pattern_v1", "confidence": 0.9}
+        ],
+        "typed_candidates": [
+          {"entity_type": "race", "value": "Nord"},
+          {"entity_type": "occupation", "value": "Scholar"},
+          {"entity_type": "occupation", "value": "Historian"}
+        ]
+      }
+    },
+    {
+      "page_id": 9,
+      "title": "The Book of the Night",
+      "namespace": 0,
+      "revision_id": 109,
+      "text": "{{Book_Summary\n| book_title = The Book of the Night\n| author = [[Mannimarco|Mannimarco]]\n| pages = \n}}\nThe volume is old.",
+      "expected": {
+        "template_counts": {"book summary": 1},
+        "template_parameters": [
+          {"template": "book summary", "name": "book_title", "named": true, "value": "The Book of the Night"},
+          {"template": "book summary", "name": "author", "named": true, "value": "Mannimarco"}
+        ],
+        "links": [
+          {"destination": "Mannimarco", "display_text": "Mannimarco"}
+        ],
+        "headings": [],
+        "reference_count": 0,
+        "categories": [],
+        "external_urls": [],
+        "text_contains": ["The volume is old."],
+        "facts": [],
+        "typed_candidates": [
+          {"entity_type": "book", "value": "The Book of the Night"}
+        ]
+      }
+    },
+    {
+      "page_id": 10,
+      "title": "Older Settlement",
+      "namespace": 0,
+      "revision_id": 110,
+      "text": "#REDIRECT [[Example Settlement]]",
+      "expected": {
+        "template_counts": {},
+        "template_parameters": [],
+        "links": [
+          {"destination": "Example Settlement", "display_text": "Example Settlement"}
+        ],
+        "headings": [],
+        "reference_count": 0,
+        "categories": [],
+        "external_urls": [],
+        "text_contains": [],
+        "facts": [],
+        "typed_candidates": []
+      }
+    },
+    {
+      "page_id": 11,
+      "title": "Malformed Template Fields",
+      "namespace": 0,
+      "revision_id": 111,
+      "text": "{{Sample\n| = stray\n| missing = \n| value = preserved\n}}",
+      "expected": {
+        "template_counts": {"sample": 1},
+        "template_parameters": [
+          {"template": "sample", "name": "", "named": true, "value": "stray"},
+          {"template": "sample", "name": "value", "named": true, "value": "preserved"}
+        ],
+        "links": [],
+        "headings": [],
+        "reference_count": 0,
+        "categories": [],
+        "external_urls": [],
+        "text_contains": [],
+        "facts": [],
+        "typed_candidates": []
+      }
+    }
+  ]
+}

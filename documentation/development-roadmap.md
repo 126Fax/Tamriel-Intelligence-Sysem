@@ -1,5 +1,10 @@
 # Development Roadmap
 
+This is the historical initial-project roadmap, not a description of the
+current implementation or setup. Current Rust-primary instructions are in the
+[project README](../README.md) and
+[Rust implementation guide](../rust-version/README.md).
+
 ## Phase 1 – Project Setup
 - [ ] Clone the GitHub repository onto the development computer.
 - [ ] Check the Python installation.

@@ -1,0 +1,32 @@
+name: Rust experiment checks
+
+on:
+  push:
+    branches:
+      - experiment/rust-python-comparison
+    paths:
+      - "rust-engine/**"
+      - ".github/workflows/rust-experiment.yml"
+  pull_request:
+    branches:
+      - experiment/rust-python-comparison
+    paths:
+      - "rust-engine/**"
+      - ".github/workflows/rust-experiment.yml"
+
+jobs:
+  rust:
+    name: Build and test experimental Rust engine
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run Rust unit tests
+        run: cargo test --manifest-path rust-engine/Cargo.toml
+
+      - name: Build release executable
+        run: cargo build --release --manifest-path rust-engine/Cargo.toml

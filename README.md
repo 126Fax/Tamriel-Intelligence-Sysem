@@ -2,47 +2,89 @@
 
 ## Project overview
 
-The Tamriel Intelligence System is a Python AI project that explores two approaches to working with Elder Scrolls lore from the UESP Wiki:
+Rust is the primary implementation and default execution path for processing
+the full UESP dump. Its promotion to the repository's default branch is
+subject to review; Python remains available as the reference implementation
+while parity is evaluated.
+The implementations use separate databases and are not yet feature-equivalent.
 
-- **Bottom-up AI:** examines wiki content, identifies recurring features and patterns, and uses those patterns to organise or classify information.
-- **Top-down AI:** takes a user's question, interprets what information is needed, retrieves relevant lore, and produces an answer using the stored knowledge.
+- **Bottom-up analysis:** imports wiki pages, records structure and evidence,
+  and extracts conservative relationship candidates.
+- **Top-down retrieval:** answers a limited set of questions from those
+  structured records and source pages.
 
-The aim is to build small, understandable working examples of both approaches and evaluate how they differ. The project is not intended to recreate the entire UESP website or build a production-scale search engine.
+## Rust quick start
 
-## Development approach
+From the repository root, build and run the Rust tests:
 
-The project is being developed in three broad stages:
+```bash
+cargo test --manifest-path rust-engine/Cargo.toml
+cargo test --manifest-path rust-version/Cargo.toml
+cargo build --release --manifest-path rust-version/Cargo.toml
+```
 
-1. **Shared foundations:** reliable XML reading, a small test dataset, storage of page content, and reusable retrieval functions.
-2. **AI prototypes:** a simple bottom-up pattern-discovery prototype and a simple top-down question-and-retrieval prototype.
-3. **Evaluation:** test both approaches against a consistent set of lore questions or analysis tasks, record their limitations, and compare their results.
+If the local Rust database already exists, inspect it and try a question
+without re-importing the dump:
 
-Data preparation is deliberately kept proportionate to the AI objectives. The synthetic MediaWiki fixture allows development and testing without repeatedly processing the full UESP dump.
+```bash
+cargo run --release --manifest-path rust-version/Cargo.toml -- stats
+cargo run --release --manifest-path rust-version/Cargo.toml -- ask "Where do dragons live?"
+```
 
-## Current foundations
+The Rust database is `data/database/tamriel_intelligence_rust.db`, and its
+knowledge export is `rust-version/data/knowledge_base.json`. These generated
+files are local and are not stored in Git.
 
-- Reads compressed MediaWiki XML exports.
-- Reads namespace information from the export.
-- Extracts the latest revision of each page.
-- Analyses basic dataset and page-length statistics.
-- Imports page metadata and full page text into SQLite in batches.
-- Provides basic keyword retrieval from stored page titles and text.
-- Includes a synthetic XML fixture and integration tests.
+## Full UESP data
 
-## Technologies
+The compressed dump is kept locally under `data/raw/` and is not stored in Git.
+On a fresh checkout, import and analyse it with:
 
-- Python
-- SQLite
-- XML processing with lxml
-- Wiki markup parsing with mwparserfromhell
-- Git and GitHub
+```bash
+cargo run --release --manifest-path rust-version/Cargo.toml -- run
+```
 
-## Data setup
+`--skip-import` skips only XML import; it still rebuilds all analysis tables.
+See [rust-version/README.md](rust-version/README.md) for batch settings, commands
+and current Rust limitations.
 
-The full UESP XML dump is not stored in Git. Configure its location locally in config/local.py using XML_DUMP_PATH. The example configuration should contain a path on the machine running the project.
+## Python reference implementation
 
-The committed synthetic fixture is used by automated tests and does not require the full dump.
+Python remains available during the Rust migration. Set up its environment and
+run its tests with:
 
-## Project status
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -p "test_*.py" -v
+```
 
-The shared foundations are being completed before the two AI prototypes are developed. The next major milestone is to build and evaluate the first simple AI behaviour, rather than expanding the data pipeline indefinitely.
+The Python demos, cleaner and pipeline remain documented in
+[docs/TESTING_AND_DEMO.md](docs/TESTING_AND_DEMO.md) and
+[docs/FULL_DUMP_PIPELINE.md](docs/FULL_DUMP_PIPELINE.md). Python should not be
+removed until the Rust parser, question handling, cleaner and tests cover the
+needed behavior.
+
+## Migration status and promotion
+
+The Rust pipeline imports the compressed dump, stores source pages and
+evidence-backed extraction results in its own SQLite database, and supports
+evidence-aware retrieval. AI-readable page preparation is an optional,
+resumable stage. Python remains in the repository with its own tests and CI;
+do not treat its database or exports as interchangeable with Rust's.
+
+Promotion is intended to happen through a reviewed pull request to `main`,
+without rewriting history or deleting the Python reference. The completed
+full-dump benchmark is historical, not a controlled comparison; rerun
+benchmarks only against a separate database copy.
+
+Parity currently covers a shared synthetic fixture and a small set of real
+pages, not the entire dump. The Rust wikitext parser and question handling
+remain narrower than Python's. Review [Rust/Python parity and migration
+status](docs/RUST_PYTHON_PARITY.md) for the comparison scope, known gaps, and
+promotion checks.
+
+See [docs/TESTING_AND_DEMO.md](docs/TESTING_AND_DEMO.md) for test instructions
+and [rust-version/README.md](rust-version/README.md) for Rust commands and
+limitations.

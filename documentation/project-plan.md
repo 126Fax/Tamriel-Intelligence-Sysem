@@ -1,5 +1,9 @@
 # Project Plan
 
+This is the historical initial project plan. Its Python-first wording predates
+the current Rust-primary architecture; see the
+[project README](../README.md) for the current implementation.
+
 ## 1. Project Description
 
 The Tamriel Intelligence System is an AI programming project developed using Python. It will explore two different artificial intelligence approaches using information from the Unofficial Elder Scrolls Pages (UESP) Wiki.

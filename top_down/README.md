@@ -1,71 +1,67 @@
 # Top-down AI – Lore Assistant
 
-## 1. Application Overview
+This guide documents the Python reference assistant. The primary Rust
+question-answering workflow is documented in the
+[Rust implementation guide](../rust-version/README.md).
 
-The Top-down AI application will be a rule-based Natural Language Processing (NLP) system designed to answer questions about the Elder Scrolls universe using information from the UESP Wiki.
+## Current capabilities
 
-The application will allow users to enter questions in natural language and retrieve relevant information from its knowledge base.
+The Top-Down AI is an explainable, rule-based assistant. It now combines:
 
-## 2. Problem Being Addressed
+1. **Question analysis** – recognises count questions, named-subject questions,
+   relationship questions and general searches.
+2. **Structured fact retrieval** – searches the exported
+   `knowledge_base.json` subject–relationship–object records.
+3. **SQLite retrieval** – searches imported page titles and text, plus
+   evidence-backed `candidate_facts`.
+4. **Count queries** – counts distinct entities only where structured
+   occupation/type data exists. It does not mistake the number of keyword
+   mentions or pages for the number of people.
+5. **Evidence-aware answers** – shows source pages and extracts where
+   available, and says when the stored data cannot support a reliable answer.
 
-The Elder Scrolls universe contains a large amount of information spread across thousands of wiki pages.
+This is still a deterministic Python system, not a general-purpose LLM. It
+cannot understand every possible wording yet. Its language analyser and
+retrieval rules are designed to be extended with tests.
 
-Finding specific information can require users to search through multiple pages and manually identify relevant details.
+## Run it
 
-This application aims to make accessing that information easier through a conversational interface.
+From the repository root:
 
-## 3. Intended Users
+```bash
+python -m top_down.chat
+```
 
-- Elder Scrolls fans interested in the lore.
-- Players looking for information about characters, locations and events.
-- Users who want to explore relationships between different parts of the fictional universe.
+Example questions:
 
-## 4. Proposed AI Techniques
+- `What do you know?` (full stored knowledge overview)
+- `Tell me a random fact` (no-repeat cycle through stored facts)\n- `What do you know about Skyrim?`
+- `Who is Vivec?`
+- `Where do dragons live?`
+- `How many farmers are there?`
+- `How many continents are there?`
+- `How many provinces are there?`
 
-The application will use a top-down approach, where its behaviour is determined by explicitly programmed rules and knowledge.
+The province question uses the traditional nine-province reference catalogue.
+Other counts require structured evidence in the SQLite analysis tables. If
+there is no reliable structured data, the assistant reports that it cannot
+give a count rather than guessing.
 
-Potential techniques include:
+## Data sources
 
-- Keyword recognition.
-- Pattern matching.
-- Rule-based question classification.
-- Knowledge-base retrieval.
-- Predefined response generation.
+- `knowledge_base.json`: extracted candidate subject–relationship–object facts.
+- `data/database/tamriel_intelligence.db`: imported wiki pages, template
+  parameters and candidate facts (generated locally and not committed).
+- `data/reference/provinces.json`: the nine-name traditional province
+  reference catalogue. This catalogue is kept separate from discoveries.
 
-## 5. Proposed Features
+## Current limitations
 
-- Accept questions written in natural language.
-- Identify the subject and intent of a question.
-- Search the knowledge base for relevant information.
-- Retrieve information about characters, locations and events.
-- Return understandable responses to the user.
-- Handle questions that the system cannot recognise.
-
-## 6. Data Source
-
-The application will use information extracted from the UESP Wiki XML dump.
-
-The data will need to be processed and organised into a searchable knowledge base.
-
-## 7. Development and Testing
-
-The application will be developed using Python.
-
-Testing will cover:
-
-- Recognised questions.
-- Unknown questions.
-- Incorrect spelling and alternative wording.
-- Questions containing multiple keywords.
-- Missing information in the knowledge base.
-- Accuracy of retrieved information.
-
-## 8. Future Improvements
-
-Potential improvements include:
-
-- More advanced natural language recognition.
-- Improved knowledge-base relationships.
-- Conversation context.
-- Additional search capabilities.
-- A graphical user interface.
+- The question analyser is pattern-based; unusual wording may need a new
+  tested pattern.
+- Counting farmers depends on occupation/profession/job fields being present
+  and correctly extracted from the imported wiki templates.
+- Counting continents depends on explicit continent type/relationship data.
+  The assistant will not infer a count from page mentions.
+- Search results are source material. A matching page or extracted candidate
+  is not automatically a verified lore fact.

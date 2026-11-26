@@ -1,0 +1,6 @@
+/target/
+/data/database/*.db
+/data/database/*.db-shm
+/data/database/*.db-wal
+/data/knowledge_base.json
+/data/cleaner/*.json

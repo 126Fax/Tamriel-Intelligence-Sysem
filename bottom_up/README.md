@@ -1,79 +1,85 @@
 # Bottom-up AI – Lore Discovery System
 
-## 1. Application Overview
+This guide documents the Python reference implementation and its analysis
+utilities. The primary Rust pipeline and setup instructions are in the
+[Rust implementation guide](../rust-version/README.md).
 
-The Bottom-up AI application analyses information from the Elder Scrolls universe using data extracted from the UESP Wiki.
+## Purpose
 
-Its purpose is to identify patterns and relationships in the source data, then organise useful findings into a structured knowledge base.
+The Bottom-Up AI examines UESP wiki data, identifies recurring structures,
+and proposes knowledge supported by source evidence. A discovered pattern is
+a candidate for further analysis; it is not automatically a verified lore fact.
 
-## 2. Current prototype
+## Current components
 
-`bottom_up_ai.py` contains the initial text-pattern and relationship-discovery prototype. It currently uses a small hardcoded list of sentences. It is not yet connected to the SQLite database and its relationship rules are still partly manually specified.
+- **Full-dump pipeline:** imports MediaWiki XML into SQLite and analyses pages,
+  wiki links, templates and candidate facts.
+- **Sentence-pattern discovery:** identifies shared structures and variable
+  values.
+- **Province reference audit:** compares extracted province candidates with a
+  separate catalogue of Tamriel's nine traditional provinces.
+- **Evidence retention:** each candidate stores its source page, original
+  evidence, extraction method and confidence.
 
-## 3. Testing with real UESP data
+## Nine-province catalogue
 
-A small, committed UESP XML sample is available so development can continue without the full dump.
+The reference file is `data/reference/provinces.json`:
 
-From the repository root, explicitly run:
+1. Skyrim
+2. Morrowind
+3. Cyrodiil
+4. Hammerfell
+5. High Rock
+6. Valenwood
+7. Elsweyr
+8. Black Marsh
+9. Summerset Isles
+
+The catalogue is a checklist for discovery, not a claim that the extractor
+has independently found all nine. The audit reports which names have
+evidence-backed candidates, which are still missing, and which candidates
+fall outside the expected list. This also helps flag errors such as a region
+being incorrectly labelled as a province.
+
+## Province extraction
+
+The full-dump extractor now checks for explicit phrasings such as
+`Skyrim is one of the nine provinces of Tamriel`. It uses the reference list
+to target candidate names, but only emits a candidate when the source sentence
+contains a matching province/Tamriel context. Evidence is retained.
+
+Inspect current discovery coverage with:\n\n```bash\npython -m bottom_up.province_catalog\n```\n\nThe report separates discovered provinces, missing names and unexpected candidates.\n\nAfter changing extraction rules, rerun the analysis stage for the imported
+dump so existing pages are re-analysed:
 
 ```bash
-python -m bottom_up.run_sample_import
+python -m bottom_up.run_full_pipeline --skip-import
 ```
 
-This runs `run_sample_import.py`, which:
+## Sentence-pattern discovery
 
-- Decodes the small committed UESP sample.
-- Uses the existing XML and namespace readers.
-- Imports five real UESP pages into a separate SQLite database.
-- Stores that database at `data/database/tamriel_sample.db`.
+The implementation is in `pattern_discovery.py`. It uses longest-common-
+subsequence alignment, allowing multi-word values such as `High Rock` and
+variables at the beginning, middle or end of sentences.
 
-The runner is deliberately separate from `bottom_up_ai.py`. It does not run when the bottom-up module is imported or when the existing prototype is run. It also does not overwrite the main database or `knowledge_base.json`.
+## Full UESP workflow
 
-The sample database is local generated data and is ignored by Git. Re-running the importer is safe: existing sample pages are not duplicated.
-
-
-## 4. Sample analysis runner
-
-After importing the sample database, run:
+Keep the original UESP XML dump under `data/raw/` (not committed to Git).
+Run:
 
 ```bash
-python -m bottom_up.run_sample_analysis
+python -m bottom_up.run_full_pipeline
 ```
 
-This separate runner reads the five stored pages, analyses their wiki markup, and reports page structure and individual outgoing links. Each link is represented with its source page, destination, destination prefix (when present), and display text.
+If the dump is already imported:
 
-These are **wiki link references**, not verified semantic relationships. A link from one page to another does not by itself prove that the source page belongs to, describes, or has any other particular relationship with the destination.
+```bash
+python -m bottom_up.run_full_pipeline --skip-import
+```
 
-The runner does not change the main database, the existing hardcoded demonstration, or `knowledge_base.json`.
+## Tests
 
-## 5. Planned development
+Run all automated tests from the repository root:
 
-The next stages are to test link extraction against a more representative sample of ordinary lore pages, discover recurring patterns across pages, and validate any proposed relationships against source text. Once this works, the same database interface can be used with the full UESP dump.
-
-Potential techniques include:
-
-- Statistical pattern discovery.
-- Text similarity and clustering.
-- Natural language processing.
-- Classification, where useful and testable.
-
-These are planned techniques, not capabilities that the current prototype already provides.
-
-## 6. Testing
-
-The existing pipeline tests use a synthetic XML fixture and a temporary SQLite database. The committed UESP sample runners provide additional manual integration checks against real UESP pages.
-
-The next stages are to connect the bottom-up analysis functions to pages retrieved from the sample database, improve pattern discovery, and test the findings against known examples. Once this works, the same database interface can be used with the full UESP dump.
-
-Potential techniques include:
-
-- Statistical pattern discovery.
-- Text similarity and clustering.
-- Natural language processing.
-- Classification, where useful and testable.
-
-These are planned techniques, not capabilities that the current prototype already provides.
-
-## 5. Testing
-
-The existing pipeline tests use a synthetic XML fixture and a temporary SQLite database. The committed UESP sample runner provides an additional manual integration check against real UESP pages.
+```bash
+python -m unittest discover -s tests -p "test_*.py" -v
+```
