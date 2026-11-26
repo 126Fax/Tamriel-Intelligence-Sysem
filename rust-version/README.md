@@ -164,6 +164,9 @@ cargo run --release --manifest-path rust-version/Cargo.toml -- analyse --dump-id
 # Inspect database row counts
 cargo run --release --manifest-path rust-version/Cargo.toml -- stats
 
+# Measure source, database and generated-output disk usage (read-only)
+cargo run --release --manifest-path rust-version/Cargo.toml -- storage-report
+
 # Ask a question
 cargo run --release --manifest-path rust-version/Cargo.toml -- ask "Where do dragons live?"
 
@@ -188,6 +191,26 @@ All commands accept `--db PATH` to select a database. The default is
 `data/database/tamriel_intelligence_rust.db`, intentionally separate from
 the Python database. The default knowledge export is
 `rust-version/data/knowledge_base.json`.
+
+## Storage usage report
+
+Run the read-only storage inventory at any point, including before and after a
+benchmark:
+
+```bash
+cargo run --release --manifest-path rust-version/Cargo.toml -- storage-report
+```
+
+The report lists the compressed source dump, SQLite database files and WAL/SHM
+sidecars, and generated files under `rust-version/data/` plus the Python
+reference `knowledge_base.json`. It reports the SQLite page allocation,
+free pages and row counts for the known tables. Use `--db PATH` to inspect a
+different Rust database.
+
+The report does not create, vacuum, checkpoint, or otherwise modify a database.
+SQLite table row counts are included, but individual table byte sizes are not
+reported; SQLite page allocation is for the database as a whole. File totals
+include any WAL/SHM sidecars found at the time of the report.
 
 The knowledge-base JSON contains relationship candidates from
 `candidate_facts`. It does not contain race, occupation or book observations
