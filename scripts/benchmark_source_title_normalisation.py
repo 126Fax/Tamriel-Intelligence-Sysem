@@ -112,6 +112,7 @@ SOURCE_TABLES = {
             source_type TEXT NOT NULL DEFAULT 'uesp'
               CHECK(source_type IN ('uesp','user','mod')),
             source_id TEXT NOT NULL, mod_id TEXT,
+            CHECK(source_type != 'mod' OR mod_id IS NOT NULL),
             FOREIGN KEY (dump_id,source_page_id)
               REFERENCES pages(dump_id,page_id) ON DELETE CASCADE
         )""",
@@ -424,6 +425,27 @@ def ai_pages_audit(root: Path) -> dict[str, Any]:
     }
 
 
+def source_title_lookup_benchmark(connection: sqlite3.Connection, label: str) -> dict[str, Any]:
+    key = connection.execute(
+        "SELECT dump_id,source_page_id FROM page_template_parameters ORDER BY parameter_id LIMIT 1"
+    ).fetchone()
+    if key is None:
+        key = connection.execute("SELECT dump_id,page_id FROM pages ORDER BY dump_id,page_id LIMIT 1").fetchone()
+    if key is None:
+        return {"label": label, "skipped": "database has no pages"}
+    dump_id, page_id = key
+    results = {}
+    for name in SOURCE_TABLES:
+        sql = "SELECT source_title FROM " + qid(name) + " WHERE dump_id=? AND source_page_id=?"
+        plan = [list(r) for r in connection.execute("EXPLAIN QUERY PLAN " + sql, (dump_id, page_id))]
+        runs = []
+        for _ in range(7):
+            started = time.perf_counter()
+            connection.execute(sql, (dump_id, page_id)).fetchall()
+            runs.append(time.perf_counter() - started)
+        results[name] = {"explain_query_plan": plan, "runs_seconds": runs, "median_seconds": statistics.median(runs)}
+    return {"label": label, "test_key": {"dump_id": dump_id, "page_id": page_id}, "tables": results}
+
 def duplicate_title_edge_case_test() -> dict[str, Any]:
     connection = sqlite3.connect(":memory:")
     try:
@@ -452,6 +474,8 @@ def duplicate_title_edge_case_test() -> dict[str, Any]:
                 (2,2,10,'Shared title','Missing page','unresolved text');
         """)
         # Apply the same composite-key reconstruction principle to the link table.
+        connection.execute("DROP INDEX idx_page_links_destination")
+        connection.execute("DROP INDEX idx_page_links_source")
         connection.execute("ALTER TABLE page_links RENAME TO page_links_old")
         connection.execute("""CREATE TABLE page_links_normalised(
             link_id INTEGER PRIMARY KEY,dump_id INTEGER NOT NULL,source_page_id INTEGER NOT NULL,
@@ -529,8 +553,14 @@ def main() -> int:
     try:
         checks = logical_checks(base_conn, cand_conn)
         performance = {
-            "baseline": query_performance(base_conn, "baseline"),
-            "candidate": query_performance(cand_conn, "candidate"),
+            "fact_retrieval_join": {
+                "baseline": query_performance(base_conn, "baseline"),
+                "candidate": query_performance(cand_conn, "candidate"),
+            },
+            "source_title_reconstruction": {
+                "baseline": source_title_lookup_benchmark(base_conn, "baseline"),
+                "candidate": source_title_lookup_benchmark(cand_conn, "candidate"),
+            },
         }
         query_plans = {
             "source_title_lookup": {
@@ -605,7 +635,7 @@ def main() -> int:
             "Compatibility views preserve SELECT access to the original logical columns; views are not writable.",
             "All source-title reconstruction joins use both dump_id and source_page_id.",
             "The source database is opened read-only; all maintenance and migration occurs on independent copies.",
-            "The query-plan example key (1,1) may not exist in the source; the timed query uses an actual key.",
+            "The source-title and fact lookup benchmarks use an actual key from the database.",
             "SQLite dbstat payload is B-tree payload, not a compressed logical-text estimate.",
         ],
     }
