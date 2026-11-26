@@ -14,7 +14,7 @@ from pathlib import Path
 
 DIRECT = re.compile(r"ai_pages", re.IGNORECASE)
 DYNAMIC = re.compile(
-    r"\b(format!|concat!|include_str!|macro_rules!|sqlx::query|query_as|query_scalar|"
+    r"\b(format!|concat!|include_str!|macro_rules!|sqlx::query|query_as|query_scalar|QueryBuilder|query_builder|sea_query|diesel::|sql!)|"
     r"\.prepare(?:_cached)?\s*\(|\.query(?:_row|_map)?\s*\(|\.execute\s*\(|"
     r"execute_batch\s*\()",
     re.IGNORECASE,
@@ -41,7 +41,7 @@ def main() -> int:
             if DIRECT.search(line):
                 direct.append({"file": relative, "line": number, "text": line.strip()})
             if DYNAMIC.search(line) and (SQL_WORDS.search(line) or any(
-                token in line for token in ("prepare", "query", "execute", "format!", "concat!", "macro_rules!")
+                token in line for token in ("prepare", "query", "execute", "format!", "concat!", "macro_rules!", "QueryBuilder", "sea_query", "diesel::", "sql!")
             )):
                 dynamic.append({"file": relative, "line": number, "text": line.strip()})
     report = {
