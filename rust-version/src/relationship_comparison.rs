@@ -265,7 +265,7 @@ pub fn compare_database(
         ],
     };
     if let Some(path) = output_path {
-        if let Some(parent) = path.parent() { std::fs::create_dir_all(parent)?; }
+        if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) { std::fs::create_dir_all(parent)?; }
         let json = serde_json::to_string_pretty(&report)?;
         std::fs::write(path, json).with_context(|| format!("writing {}", path.display()))?;
     }
@@ -300,4 +300,41 @@ mod tests {
         assert!(added >= 2, "expanded rules should add born-in and member-of facts; got {expanded:#?}");
         assert_eq!(removed, 0, "expanded rules should preserve the legacy fixture facts");
     }
+    #[test]
+    fn database_comparison_reads_the_same_pages_and_leaves_source_database_unchanged() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let database_path = directory.path().join("comparison.db");
+        let report_path = directory.path().join("report.json");
+        {
+            let connection = crate::database::connect(&database_path).expect("create schema");
+            connection.execute(
+                "INSERT INTO source_dumps(dump_id,source_name,import_status) VALUES(1,'comparison-fixture','completed')",
+                [],
+            ).expect("insert dump");
+            connection.execute(
+                "INSERT INTO pages(dump_id,page_id,title,namespace_id,namespace_name,revision_id,text_length,page_text)
+                 VALUES(1,10,'Relationship fixture',0,'Main',1,160,
+                 'The Nords live in Skyrim. Skyrim is one of the nine provinces of Tamriel. Jagar Tharn was born in the Imperial City. Ancano is a member of the Thalmor.')",
+                [],
+            ).expect("insert fixture page");
+        }
+
+        let report = compare_database(&database_path, 1, 50000, Some(&report_path))
+            .expect("comparison should complete");
+        assert_eq!(report.pages_compared, 1);
+        assert!(report.added_fact_count >= 2, "expanded extractor should add new relation types");
+        assert_eq!(report.removed_fact_count, 0, "legacy fixture facts should be retained");
+        assert!(report_path.is_file(), "JSON comparison report should be written");
+
+        let connection = rusqlite::Connection::open_with_flags(
+            &database_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
+        ).expect("reopen source database read-only");
+        let pages: i64 = connection.query_row("SELECT COUNT(*) FROM pages", [], |row| row.get(0))
+            .expect("count source pages");
+        let facts: i64 = connection.query_row("SELECT COUNT(*) FROM candidate_facts", [], |row| row.get(0))
+            .expect("count derived facts");
+        assert_eq!(pages, 1, "comparison must not change source pages");
+        assert_eq!(facts, 0, "comparison must not rebuild or write derived facts");
+    }
+
 }
