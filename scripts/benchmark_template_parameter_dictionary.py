@@ -229,10 +229,6 @@ def build_dictionary_candidate(path: Path) -> float:
                 ON page_template_parameters_dictionary(dump_id,source_page_id)
         """)
         connection.execute("DROP TABLE page_template_parameters")
-        connection.execute("""
-            ALTER TABLE page_template_parameters_dictionary
-            RENAME TO page_template_parameters_dictionary
-        """)
         # Preserve the original read/query shape through a view with the same name.
         connection.execute("""
             CREATE VIEW page_template_parameters AS
