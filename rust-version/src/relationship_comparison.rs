@@ -98,61 +98,71 @@ fn split_sentences(text: &str) -> Vec<&str> {
     sentences
 }
 
-fn legacy_extract(text: &str, page_id: i64, title: &str, provinces: &[String]) -> Vec<CandidateFact> {
-    let patterns = LEGACY_PATTERNS.iter().map(|(relationship, pattern, confidence)| {
-        (*relationship, Regex::new(pattern).expect("legacy regex is valid"), *confidence)
-    }).collect::<Vec<_>>();
-    let province_patterns = provinces.iter().map(|province| {
-        let escaped = regex::escape(province);
-        let contexts = [
-            format!(r"(?i)\b{escaped}\b.{{0,500}}\b(?:one of the |among the )?(?:nine )?provinces? of Tamriel\b"),
-            format!(r"(?i)\bprovinces? of Tamriel\b.{{0,500}}\b{escaped}\b"),
-            format!(r"(?i)\bTamriel['’]s (?:nine )?provinces?\b.{{0,500}}\b{escaped}\b"),
-        ];
-        (province, contexts.map(|p| Regex::new(&p).expect("province regex is valid")))
-    }).collect::<Vec<_>>();
+struct LegacyFactExtractor {
+    patterns: Vec<(String, Regex, f64)>,
+    province_patterns: Vec<(String, [Regex; 3])>,
+}
 
-    let mut facts = Vec::new();
-    for raw in split_sentences(text) {
-        let sentence = raw.split_whitespace().collect::<Vec<_>>().join(" ");
-        if sentence.is_empty() { continue; }
-        for (relationship, pattern, confidence) in &patterns {
-            for captures in pattern.captures_iter(&sentence) {
-                let subject = clean_legacy_entity(captures.name("subject").unwrap().as_str());
-                let object = clean_legacy_entity(captures.name("object").unwrap().as_str());
-                if subject.is_empty() || object.is_empty() || subject.eq_ignore_ascii_case(&object) { continue; }
-                facts.push(CandidateFact {
-                    source_page_id: page_id, source_page: title.to_string(),
-                    subject, relationship: (*relationship).to_string(), object,
-                    evidence: sentence.chars().take(2000).collect(),
-                    extraction_method: "explicit_sentence_pattern_v1".to_string(),
-                    confidence: *confidence,
-                });
+impl LegacyFactExtractor {
+    fn new(provinces: &[String]) -> Self {
+        let patterns = LEGACY_PATTERNS.iter().map(|(relationship, pattern, confidence)| {
+            ((*relationship).to_string(), Regex::new(pattern).expect("legacy regex is valid"), *confidence)
+        }).collect();
+        let province_patterns = provinces.iter().map(|province| {
+            let escaped = regex::escape(province);
+            let contexts = [
+                format!(r"(?i)\b{escaped}\b.{{0,500}}\b(?:one of the |among the )?(?:nine )?provinces? of Tamriel\b"),
+                format!(r"(?i)\bprovinces? of Tamriel\b.{{0,500}}\b{escaped}\b"),
+                format!(r"(?i)\bTamriel['’]s (?:nine )?provinces?\b.{{0,500}}\b{escaped}\b"),
+            ];
+            (province.clone(), contexts.map(|p| Regex::new(&p).expect("province regex is valid")))
+        }).collect();
+        Self { patterns, province_patterns }
+    }
+
+    fn extract_facts(&self, text: &str, page_id: i64, title: &str) -> Vec<CandidateFact> {
+        let mut facts = Vec::new();
+        for raw in split_sentences(text) {
+            let sentence = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+            if sentence.is_empty() { continue; }
+            for (relationship, pattern, confidence) in &self.patterns {
+                for captures in pattern.captures_iter(&sentence) {
+                    let subject = clean_legacy_entity(captures.name("subject").unwrap().as_str());
+                    let object = clean_legacy_entity(captures.name("object").unwrap().as_str());
+                    if subject.is_empty() || object.is_empty() || subject.eq_ignore_ascii_case(&object) { continue; }
+                    facts.push(CandidateFact {
+                        source_page_id: page_id, source_page: title.to_string(),
+                        subject, relationship: relationship.clone(), object,
+                        evidence: sentence.chars().take(2000).collect(),
+                        extraction_method: "explicit_sentence_pattern_v1".to_string(),
+                        confidence: *confidence,
+                    });
+                }
+            }
+            for (province, contexts) in &self.province_patterns {
+                if contexts.iter().any(|pattern| pattern.is_match(&sentence)) {
+                    facts.push(CandidateFact {
+                        source_page_id: page_id, source_page: title.to_string(),
+                        subject: province.clone(), relationship: "province of".to_string(),
+                        object: "Tamriel".to_string(),
+                        evidence: sentence.chars().take(2000).collect(),
+                        extraction_method: "province_reference_context_v1".to_string(),
+                        confidence: 0.92,
+                    });
+                }
             }
         }
-        for (province, contexts) in &province_patterns {
-            if contexts.iter().any(|pattern| pattern.is_match(&sentence)) {
-                facts.push(CandidateFact {
-                    source_page_id: page_id, source_page: title.to_string(),
-                    subject: (*province).clone(), relationship: "province of".to_string(),
-                    object: "Tamriel".to_string(),
-                    evidence: sentence.chars().take(2000).collect(),
-                    extraction_method: "province_reference_context_v1".to_string(),
-                    confidence: 0.92,
-                });
-            }
+        let mut unique = Vec::new();
+        for fact in facts {
+            if !unique.iter().any(|old: &CandidateFact| {
+                old.subject.eq_ignore_ascii_case(&fact.subject)
+                    && old.relationship == fact.relationship
+                    && old.object.eq_ignore_ascii_case(&fact.object)
+                    && old.evidence == fact.evidence
+            }) { unique.push(fact); }
         }
+        unique
     }
-    let mut unique = Vec::new();
-    for fact in facts {
-        if !unique.iter().any(|old: &CandidateFact| {
-            old.subject.eq_ignore_ascii_case(&fact.subject)
-                && old.relationship == fact.relationship
-                && old.object.eq_ignore_ascii_case(&fact.object)
-                && old.evidence == fact.evidence
-        }) { unique.push(fact); }
-    }
-    unique
 }
 
 fn normalized(value: &str) -> String {
@@ -197,6 +207,7 @@ pub fn compare_database(
     let provinces: Vec<String> = serde_json::from_slice(&std::fs::read(&provinces_path)?)
         .with_context(|| format!("reading {}", provinces_path.display()))?;
     let expanded = FactExtractor::new(&provinces);
+    let legacy = LegacyFactExtractor::new(&provinces);
     let mut statement = connection.prepare(
         "SELECT page_id,title,page_text FROM pages WHERE dump_id=? ORDER BY page_id LIMIT ?"
     )?;
@@ -212,7 +223,7 @@ pub fn compare_database(
         let source_text: String = row.get(2)?;
         let wiki = analyse_wikitext(page_id, &title, &source_text);
         let legacy_started = Instant::now();
-        legacy_facts.extend(legacy_extract(&wiki.plain_text, page_id, &title, &provinces));
+        legacy_facts.extend(legacy.extract_facts(&wiki.plain_text, page_id, &title));
         legacy_seconds += legacy_started.elapsed().as_secs_f64();
         let expanded_started = Instant::now();
         expanded_facts.extend(expanded.extract_facts(&wiki.plain_text, page_id, &title));
@@ -278,7 +289,7 @@ mod tests {
             "Jagar Tharn was born in the Imperial City. ",
             "Ancano is a member of the Thalmor."
         );
-        let legacy = legacy_extract(text, 7, "Comparison fixture", &provinces);
+        let legacy = LegacyFactExtractor::new(&provinces).extract_facts(text, 7, "Comparison fixture");
         let expanded = FactExtractor::new(&provinces).extract_facts(text, 7, "Comparison fixture");
         let legacy_ids = legacy.iter().map(identity).collect::<HashSet<_>>();
         let expanded_ids = expanded.iter().map(identity).collect::<HashSet<_>>();
