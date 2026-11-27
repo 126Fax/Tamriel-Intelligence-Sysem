@@ -4,6 +4,19 @@ A Rust-based project for processing Elder Scrolls lore from the UESP Wiki and ma
 
 The current application is implemented in **Rust**. The earlier Python implementation is retained in the repository as a reference and comparison point; the Rust application uses its own SQLite database and knowledge-base export.
 
+
+## HND AI assignment prototype
+
+The assignment-focused prototype branch documents and demonstrates the two AI
+approaches using this project:
+
+- [Assignment prototype guide](assignment/README.md)
+- Top-Down terminal question answering: `ask`
+- Bottom-Up data-driven pattern discovery: `discover-patterns`
+
+The prototype is developed on `prototype/ai-assignment` and does not replace
+this repository's main development branch.
+
 ## How it works
 
 The project follows a Bottom-Up and Top-Down approach:
