@@ -45,6 +45,13 @@ enum Command {
         #[arg(long)] limit: Option<usize>,
         #[arg(long)] skip_import: bool,
     },
+    /// Discover recurring structures in stored evidence (Bottom-Up prototype).
+    DiscoverPatterns {
+        #[arg(long)] db: Option<PathBuf>,
+        #[arg(long, default_value_t = 250)] limit: usize,
+        #[arg(long, default_value_t = 2)] minimum_support: usize,
+        #[arg(long, default_value_t = 3)] minimum_fixed_tokens: usize,
+    },
     /// Ask the Rust Top-Down prototype a question.
     Ask {
         question: String,
@@ -138,6 +145,25 @@ fn main() -> Result<()> {
             let count = knowledge::export_knowledge_base(&db_path,dump_id,&output_path)?;
             println!("  {count} records -> {}",output_path.display());
             println!("Rust pipeline complete in {:.2}s.",total_started.elapsed().as_secs_f64());
+        }
+        Command::DiscoverPatterns { db, limit, minimum_support, minimum_fixed_tokens } => {
+            let db_path = db.unwrap_or_else(config::default_database);
+            let patterns = tamriel_intelligence::bottom_up::discover_database_patterns(
+                &db_path, limit, minimum_support, minimum_fixed_tokens
+            )?;
+            println!("Bottom-Up pattern discovery");
+            println!("Evidence sample limit: {limit} | Minimum support: {minimum_support} | Minimum fixed tokens: {minimum_fixed_tokens}");
+            if patterns.is_empty() {
+                println!("No recurring patterns met the selected thresholds.");
+            } else {
+                for (index, pattern) in patterns.iter().enumerate() {
+                    println!("\\n{}. {} (support: {})", index + 1, pattern.pattern, pattern.support);
+                    for example in &pattern.examples {
+                        println!("   - {example}");
+                    }
+                }
+                println!("\\nPatterns are data-derived candidates, not verified lore facts.");
+            }
         }
         Command::Ask { question,db } => {
             let db_path = db.unwrap_or_else(config::default_database);
