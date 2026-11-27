@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod bottom_up;
 pub mod cleaner;
 pub mod config;
 pub mod database;
